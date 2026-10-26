@@ -1,0 +1,109 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum MetabolicSex {
+  MALE
+  FEMALE
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHTLY_ACTIVE
+  MODERATELY_ACTIVE
+  VERY_ACTIVE
+  EXTRA_ACTIVE
+}
+
+enum FitnessGoal {
+  LOSE_WEIGHT
+  MAINTAIN_WEIGHT
+  GAIN_WEIGHT
+}
+
+model User {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  name            String?
+  email           String          @unique
+
+  // Fitness profile for BMR and TDEE estimates
+  age             Int?
+  metabolicSex    MetabolicSex?
+  heightCm        Float?
+  weightKg        Float?
+  activityLevel   ActivityLevel?
+  goal            FitnessGoal?
+
+  // Relationships
+  workouts        Workout[]
+  customExercises Exercise[]
+}
+
+model Workout {
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String            @db.ObjectId
+  title           String
+  date            DateTime          @default(now())
+  durationMinutes Int?
+  notes           String?
+
+  user            User              @relation(fields: [userId], references: [id])
+  exercises       WorkoutExercise[]
+
+  @@index([userId, date])
+}
+
+model Exercise {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  category    String
+  description String?
+
+  // Null ownerId means a shared, built-in exercise
+  // A populated ownerId means a user-created custom exercise
+  ownerId     String?           @db.ObjectId
+  owner       User?             @relation(fields: [ownerId], references: [id])
+
+  workouts    WorkoutExercise[]
+
+  @@index([ownerId])
+}
+
+model WorkoutExercise {
+  id         String       @id @default(auto()) @map("_id") @db.ObjectId
+  workoutId  String       @db.ObjectId
+  exerciseId String       @db.ObjectId
+  order      Int
+
+  workout    Workout      @relation(fields: [workoutId], references: [id])
+  exercise   Exercise     @relation(fields: [exerciseId], references: [id])
+  sets       WorkoutSet[]
+
+  @@index([workoutId, order])
+  @@index([exerciseId])
+}
+
+model WorkoutSet {
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  workoutExerciseId  String          @db.ObjectId
+  setNumber          Int
+  reps               Int
+  weight             Float?
+  completed          Boolean         @default(false)
+
+  workoutExercise    WorkoutExercise @relation(fields: [workoutExerciseId], references: [id])
+
+  @@index([workoutExerciseId, setNumber])
+}
