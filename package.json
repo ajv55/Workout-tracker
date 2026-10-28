@@ -1,7 +1,7 @@
 {
   "overrides": {
-  "deepmerge-ts": "^8.0.2"
-},
+    "deepmerge-ts": "^8.0.2"
+  },
   "name": "workout-tracker",
   "version": "0.1.0",
   "private": true,
@@ -12,8 +12,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.3",
     "@prisma/client": "^6.19.3",
     "next": "16.4.3",
+    "next-auth": "^5.0.0-beta.32",
     "prisma": "^6.19.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
