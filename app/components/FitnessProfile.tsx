@@ -2,6 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import type { RestingEnergyResult } from "@/app/lib/energy";
+import type {
+  ActivityLevel,
+  DailyEnergyResult,
+} from "@/app/lib/daily-energy";
 
 type EquationSex = "MALE" | "FEMALE";
 
@@ -11,8 +15,10 @@ type ProfileResponse = {
     metabolicSex: EquationSex | null;
     heightCm: number | null;
     weightKg: number | null;
+    activityLevel: ActivityLevel | null;
   };
   restingEnergy: RestingEnergyResult;
+  dailyEnergy: DailyEnergyResult;
 };
 
 type ProfileForm = {
@@ -21,10 +27,41 @@ type ProfileForm = {
   heightFeet: string;
   heightInches: string;
   weightLb: string;
+  activityLevel: ActivityLevel | "";
 };
 
 const CM_PER_INCH = 2.54;
 const KG_PER_POUND = 0.45359237;
+
+const activityOptions = [
+  {
+    value: "SEDENTARY",
+    label: "Sedentary",
+    description: "Mostly seated, with little walking or exercise.",
+  },
+  {
+    value: "LIGHTLY_ACTIVE",
+    label: "Lightly active",
+    description: "Mostly seated, with some walking and light activity.",
+  },
+  {
+    value: "MODERATELY_ACTIVE",
+    label: "Moderately active",
+    description: "Regular movement and exercise across a typical week.",
+  },
+  {
+    value: "VERY_ACTIVE",
+    label: "Very active",
+    description:
+      "Substantial daily movement, physical work, or demanding training.",
+  },
+  {
+    value: "EXTRA_ACTIVE",
+    label: "Extra active",
+    description:
+      "Sustained strenuous work or a very demanding training schedule.",
+  },
+] as const;
 
 const emptyForm: ProfileForm = {
   age: "",
@@ -32,6 +69,7 @@ const emptyForm: ProfileForm = {
   heightFeet: "",
   heightInches: "",
   weightLb: "",
+  activityLevel: "",
 };
 
 const fieldLabels = {
@@ -45,8 +83,6 @@ const inputClass =
   "mt-2 w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm";
 
 function toForm(profile: ProfileResponse["profile"]): ProfileForm {
-  // Round total inches before splitting so 11.999 inches carries
-  // into the next foot instead of displaying 12 inches.
   const totalInches =
     profile.heightCm === null
       ? null
@@ -69,6 +105,7 @@ function toForm(profile: ProfileResponse["profile"]): ProfileForm {
       profile.weightKg === null
         ? ""
         : Number((profile.weightKg / KG_PER_POUND).toFixed(1)).toString(),
+    activityLevel: profile.activityLevel ?? "",
   };
 }
 
@@ -76,16 +113,22 @@ function parseOptionalNumber(value: string): number | null {
   return value.trim() === "" ? null : Number(value);
 }
 
-function Estimate({ result }: { result: RestingEnergyResult }) {
+function Calories({ value }: { value: number }) {
+  return (
+    <p className="mt-3 text-3xl font-bold text-accent-cyan">
+      {Math.round(value).toLocaleString("en-US")}
+      <span className="ml-2 text-sm font-normal text-text-muted">
+        kcal/day
+      </span>
+    </p>
+  );
+}
+
+function RestingEstimate({ result }: { result: RestingEnergyResult }) {
   if (result.status === "available") {
     return (
       <>
-        <p className="mt-3 text-3xl font-bold text-accent-cyan">
-          {Math.round(result.kcalPerDay).toLocaleString("en-US")}
-          <span className="ml-2 text-sm font-normal text-text-muted">
-            kcal/day
-          </span>
-        </p>
+        <Calories value={result.kcalPerDay} />
         <p className="mt-3 text-sm text-text-muted">
           Estimated energy used at rest using Mifflin–St Jeor.
           This is not your total daily expenditure or an intake target.
@@ -117,6 +160,41 @@ function Estimate({ result }: { result: RestingEnergyResult }) {
   }
 
   return <p className="mt-3 text-sm text-text-muted">{message}</p>;
+}
+
+function DailyEstimate({ result }: { result: DailyEnergyResult }) {
+  if (result.status === "unavailable") {
+    const message =
+      result.reason === "missing-activity-level"
+        ? "Select and save your typical activity level to calculate this estimate."
+        : result.reason === "invalid-activity-level"
+          ? "Select a valid activity level and save your profile."
+          : "Complete or correct the resting-energy inputs first.";
+
+    return <p className="mt-3 text-sm text-text-muted">{message}</p>;
+  }
+
+  const activity = activityOptions.find(
+    (option) => option.value === result.activityLevel,
+  );
+
+  return (
+    <>
+      <Calories value={result.kcalPerDay} />
+
+      <p className="mt-3 text-sm text-text-muted">
+        Resting estimate × {result.activityMultiplier} activity factor
+        {" "}({activity?.label}).
+      </p>
+
+      <p className="mt-3 text-sm text-text-muted">
+        An approximate average daily expenditure at your current weight
+        and typical activity level. Individual needs can differ.
+        Regular exercise is included; logged workout calories are not
+        added again. This is not a weight-loss or weight-gain target.
+      </p>
+    </>
+  );
 }
 
 export default function FitnessProfile() {
@@ -192,10 +270,7 @@ export default function FitnessProfile() {
     const inches = parseOptionalNumber(form.heightInches);
     const pounds = parseOptionalNumber(form.weightLb);
 
-    if (
-      age !== null &&
-      (!Number.isInteger(age) || age <= 0)
-    ) {
+    if (age !== null && (!Number.isInteger(age) || age <= 0)) {
       setSaveError("Enter age as a positive whole number.");
       return;
     }
@@ -216,7 +291,7 @@ export default function FitnessProfile() {
       )
     ) {
       setSaveError(
-        "Enter both feet and inches. Feet must be a nonnegative whole number, and inches must be between 0 and less than 12. Clear both fields to remove height.",
+        "Enter both feet and inches. Use whole-number feet and inches from 0 to less than 12. Clear both fields to remove height.",
       );
       return;
     }
@@ -269,6 +344,7 @@ export default function FitnessProfile() {
           heightCm,
           weightKg,
           metabolicSex: form.metabolicSex || null,
+          activityLevel: form.activityLevel || null,
         }),
       });
 
@@ -277,7 +353,7 @@ export default function FitnessProfile() {
           response.status === 401
             ? "Your session has expired. Sign in again."
             : response.status === 400
-              ? "Check your measurements and age before saving."
+              ? "Check your profile inputs before saving."
               : "Unable to save your fitness profile.",
         );
       }
@@ -312,13 +388,17 @@ export default function FitnessProfile() {
 
   if (!data) return null;
 
+  const selectedActivity = activityOptions.find(
+    (option) => option.value === form.activityLevel,
+  );
+
   return (
     <div className="space-y-6">
       <form
         onSubmit={handleSubmit}
         className="rounded-2xl border border-app-border bg-app-surface p-6"
       >
-        <h2 className="text-lg font-semibold">Your measurements</h2>
+        <h2 className="text-lg font-semibold">Your fitness profile</h2>
 
         <p id="profile-help" className="mt-2 text-sm text-text-muted">
           Enter height in feet and inches, and weight in pounds.
@@ -331,7 +411,7 @@ export default function FitnessProfile() {
           aria-describedby="profile-help"
           className="mt-6 grid gap-5 sm:grid-cols-2"
         >
-          <legend className="sr-only">Resting energy inputs</legend>
+          <legend className="sr-only">Energy estimate inputs</legend>
 
           <label htmlFor="profile-age" className="text-sm font-medium">
             Age (years)
@@ -348,7 +428,6 @@ export default function FitnessProfile() {
 
           <div>
             <p className="text-sm font-medium">Height</p>
-
             <div className="grid grid-cols-2 gap-3">
               <label htmlFor="profile-feet" className="mt-2 text-sm">
                 Feet
@@ -372,7 +451,6 @@ export default function FitnessProfile() {
                   id="profile-inches"
                   type="number"
                   min="0"
-                  max="11.99"
                   step="any"
                   placeholder="8"
                   value={form.heightInches}
@@ -435,6 +513,53 @@ export default function FitnessProfile() {
               <option value="FEMALE">Female coefficient</option>
             </select>
           </label>
+
+          <label
+            htmlFor="profile-activity"
+            className="text-sm font-medium sm:col-span-2"
+          >
+            Typical overall activity
+            <select
+              id="profile-activity"
+              value={form.activityLevel}
+              aria-describedby="activity-help"
+              onChange={(event) => {
+                const value = event.target.value;
+
+                if (value === "") {
+                  updateField("activityLevel", "");
+                  return;
+                }
+
+                const option = activityOptions.find(
+                  (item) => item.value === value,
+                );
+
+                if (option) {
+                  updateField("activityLevel", option.value);
+                }
+              }}
+              className={inputClass}
+            >
+              <option value="">Select an activity level</option>
+              {activityOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <p
+            id="activity-help"
+            className="text-sm text-text-muted sm:col-span-2"
+          >
+            {selectedActivity
+              ? `${selectedActivity.description} `
+              : ""}
+            Consider your work, transport, everyday movement, and regular
+            exercise across a typical week—not just your hardest workout.
+          </p>
         </fieldset>
 
         <p id="equation-sex-help" className="mt-4 text-xs text-text-muted">
@@ -461,6 +586,10 @@ export default function FitnessProfile() {
         </button>
       </form>
 
+      <p className="text-sm text-text-muted">
+        Estimates below use your last saved profile.
+      </p>
+
       <section
         aria-labelledby="resting-energy-heading"
         className="rounded-2xl border border-app-border bg-app-surface p-6"
@@ -468,11 +597,17 @@ export default function FitnessProfile() {
         <h2 id="resting-energy-heading" className="text-lg font-semibold">
           Estimated resting calories
         </h2>
-        <p className="mt-1 text-xs text-text-muted">
-          Based on your last saved profile.
-        </p>
+        <RestingEstimate result={data.restingEnergy} />
+      </section>
 
-        <Estimate result={data.restingEnergy} />
+      <section
+        aria-labelledby="daily-energy-heading"
+        className="rounded-2xl border border-app-border bg-app-surface p-6"
+      >
+        <h2 id="daily-energy-heading" className="text-lg font-semibold">
+          Estimated daily expenditure (TDEE)
+        </h2>
+        <DailyEstimate result={data.dailyEnergy} />
       </section>
     </div>
   );

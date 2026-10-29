@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
 import { estimateRestingEnergy } from "@/app/lib/energy";
+import {
+  estimateDailyEnergy,
+  type ActivityLevel,
+} from "@/app/lib/daily-energy";
 import { updateProfileSchema } from "@/app/lib/validations/profile";
 
 const profileSelect = {
@@ -17,21 +21,29 @@ const responseHeaders = {
   "Cache-Control": "private, no-store",
 };
 
-function buildProfileResponse(profile: {
+type FitnessProfile = {
   age: number | null;
   metabolicSex: "MALE" | "FEMALE" | null;
   heightCm: number | null;
   weightKg: number | null;
-  activityLevel: string | null;
+  activityLevel: ActivityLevel | null;
   goal: string | null;
-}) {
+};
+
+function buildProfileResponse(profile: FitnessProfile) {
+  const energyInput = {
+    age: profile.age,
+    metabolicSex: profile.metabolicSex,
+    heightCm: profile.heightCm,
+    weightKg: profile.weightKg,
+  };
+
   return {
     profile,
-    restingEnergy: estimateRestingEnergy({
-      age: profile.age,
-      metabolicSex: profile.metabolicSex,
-      heightCm: profile.heightCm,
-      weightKg: profile.weightKg,
+    restingEnergy: estimateRestingEnergy(energyInput),
+    dailyEnergy: estimateDailyEnergy({
+      ...energyInput,
+      activityLevel: profile.activityLevel,
     }),
   };
 }
