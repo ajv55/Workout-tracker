@@ -1,3 +1,5 @@
+import RecentWorkouts from "@/app/components/RecentWorkouts";
+
 
 const navigation = [
   { label: "Dashboard", icon: "◫", active: true },
@@ -42,33 +44,6 @@ const stats = [
     icon: "◎",
     color: "text-accent-cyan",
     iconBg: "bg-accent-cyan/10",
-  },
-];
-
-const workouts = [
-  {
-    name: "Upper Body Strength",
-    category: "Strength",
-    date: "Today, 9:30 AM",
-    duration: "45 min",
-    exercises: 6,
-    color: "bg-accent-cyan/10 text-accent-cyan",
-  },
-  {
-    name: "Lower Body Power",
-    category: "Strength",
-    date: "Yesterday, 5:15 PM",
-    duration: "52 min",
-    exercises: 7,
-    color: "bg-accent-violet/10 text-accent-violet",
-  },
-  {
-    name: "Morning Cardio",
-    category: "Cardio",
-    date: "Oct 23, 7:00 AM",
-    duration: "30 min",
-    exercises: 4,
-    color: "bg-accent-emerald/10 text-accent-emerald",
   },
 ];
 
@@ -390,49 +365,7 @@ export default function Home() {
                 title="Recent Workouts"
                 action="View all →"
               />
-              <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
-                {workouts.map((workout, index) => (
-                  <article
-                    key={workout.name}
-                    className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5 ${
-                      index !== workouts.length - 1
-                        ? "border-b border-app-border"
-                        : ""
-                    }`}
-                  >
-                    <div
-                      className={`flex size-12 shrink-0 items-center justify-center rounded-xl text-xl ${workout.color}`}
-                      aria-hidden="true"
-                    >
-                      {index === 0 ? "↗" : index === 1 ? "◇" : "⌁"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold">{workout.name}</h3>
-                      <p className="mt-1 text-sm text-text-muted">
-                        {workout.date}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-text-muted sm:gap-6">
-                      <span className="whitespace-nowrap">
-                        {workout.duration}
-                      </span>
-                      <span className="whitespace-nowrap">
-                        {workout.exercises} exercises
-                      </span>
-                      <span className="hidden rounded-lg bg-app-raised px-3 py-1.5 text-xs font-medium text-text-muted sm:inline-block">
-                        {workout.category}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      aria-label={`View ${workout.name}`}
-                      className="self-end rounded-lg px-3 py-2 text-sm text-text-muted transition hover:bg-app-raised hover:text-accent-cyan sm:self-auto"
-                    >
-                      View →
-                    </button>
-                  </article>
-                ))}
-              </div>
+              <RecentWorkouts />
             </section>
 
             {/* Progress highlight */}
