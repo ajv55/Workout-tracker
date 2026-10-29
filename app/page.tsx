@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import RecentWorkouts from "@/app/components/RecentWorkouts";
 
 import { auth } from "@/auth";
@@ -6,33 +7,25 @@ import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
 
 const navigation = [
-
-  { label: "Dashboard", icon: "◫", active: true },
-
-  { label: "My Workouts", icon: "▤", active: false },
-
-  { label: "Exercises", icon: "◈", active: false },
-
-  { label: "Progress", icon: "↗", active: false },
-
+  { label: "Dashboard", icon: "◫", href: "/", active: true },
+  { label: "Workout History", icon: "▤", href: "/workouts", active: false },
+  { label: "Fitness Profile", icon: "◎", href: "/profile", active: false },
 ];
 
-function SectionHeading({ title, action,}: {
+function SectionHeading({ title, action, href }: {
   title: string;
   action?: string;
+  href?: string;
 }) {
-return (
-
+  return (
     <div className="mb-5 flex items-center justify-between gap-3">
-
       <h2 className="text-base font-semibold text-text-primary sm:text-lg">
         {title}
       </h2>
-
-      {action && (
-        <button type="button" className="text-sm font-medium text-accent-cyan transition hover:text-cyan-200">
+      {action && href && (
+        <Link href={href} className="text-sm font-medium text-accent-cyan transition hover:text-cyan-200">
           {action}
-        </button>
+        </Link>
       )}
     </div>
   );
@@ -236,7 +229,7 @@ return (
 
         <aside className="hidden w-64 shrink-0 flex-col border-r border-app-border bg-app-surface p-5 lg:flex">
 
-          <a href="#" className="mb-10 flex items-center gap-3">
+          <Link href="/" className="mb-10 flex items-center gap-3">
 
             <span className="flex size-10 items-center justify-center rounded-xl bg-accent-cyan text-xl font-bold text-app-bg">
 
@@ -260,7 +253,7 @@ return (
 
             </span>
 
-          </a>
+          </Link>
 
           <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-widest text-text-subtle">
 
@@ -268,12 +261,12 @@ return (
 
           </p>
 
-          <nav _aria-label_="Main navigation" className="space-y-1">
+          <nav aria-label="Main navigation" className="space-y-1">
 
             {navigation.map((item) => (
 
-              <a key={item.label} href="#" _aria-current_={item.active ? "page" : undefined} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${ item.active ? "bg-accent-cyan/10 text-accent-cyan" : "text-text-muted hover:bg-app-raised hover:text-text-primary"}`}>
-                <span className="w-6 text-center text-lg" _aria-hidden_="true">
+              <Link key={item.label} href={item.href} aria-current={item.active ? "page" : undefined} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${ item.active ? "bg-accent-cyan/10 text-accent-cyan" : "text-text-muted hover:bg-app-raised hover:text-text-primary"}`}>
+                <span className="w-6 text-center text-lg" aria-hidden="true">
                   {item.icon}
                 </span>
 
@@ -285,7 +278,7 @@ return (
 
                 )}
 
-              </a>
+              </Link>
 
             ))}
 
@@ -306,7 +299,7 @@ return (
             </p>
           </div>
 
-          <div className="mt-5 flex items-center gap-3 border-t border-app-border pt-5">
+          <Link href="/profile" className="mt-5 flex items-center gap-3 border-t border-app-border pt-5">
 
             <div className="flex size-10 items-center justify-center rounded-full bg-accent-cyan/15 font-semibold text-accent-cyan">
 
@@ -322,13 +315,13 @@ return (
 
             </div>
 
-            <span className="ml-auto text-text-muted" _aria-hidden_="true">
+            <span className="ml-auto text-text-muted" aria-hidden="true">
 
               ⋯
 
             </span>
 
-          </div>
+          </Link>
 
         </aside>
 
@@ -360,34 +353,34 @@ return (
 
                 <label className="hidden items-center gap-2 rounded-xl border border-app-border bg-app-surface px-3 py-2.5 md:flex">
 
-                  <span _aria-hidden_="true" className="text-text-muted">
+                  <span aria-hidden="true" className="text-text-muted">
 
                     ⌕
 
                   </span>
 
-                  <input type="search" placeholder="Search workouts..." _aria-label_="Search workouts" className="w-40 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-subtle"/>
+                  <input type="search" placeholder="Search workouts..." aria-label="Search workouts" className="w-40 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-subtle"/>
                   <span className="text-xs text-text-subtle">⌘ K</span>
                 </label>
 
-                <button type="button" _aria-label_="Notifications" className="relative flex size-10 items-center justify-center rounded-xl border border-app-border bg-app-surface text-lg text-text-muted transition hover:text-text-primary">
+                <button type="button" aria-label="Notifications" className="relative flex size-10 items-center justify-center rounded-xl border border-app-border bg-app-surface text-lg text-text-muted transition hover:text-text-primary">
                   ♧
                   <span className="absolute right-2 top-2 size-2 rounded-full bg-accent-cyan" />
                 </button>
 
                 <a href="#recent-workouts" className="hidden items-center gap-2 rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-app-bg transition hover:bg-cyan-300 sm:inline-flex">
-                  <span _aria-hidden_="true">+</span>
+                  <span aria-hidden="true">+</span>
                   New Workout
                 </a>
 
               </div>
             </div>
 
-            <nav _aria-label_="Mobile navigation" className="mx-auto mt-4 flex max-w-7xl gap-2 overflow-x-auto lg:hidden">
+            <nav aria-label="Mobile navigation" className="mx-auto mt-4 flex max-w-7xl gap-2 overflow-x-auto lg:hidden">
               {navigation.map((item) => (
-                <a key={item.label} href="#" _aria-current_={item.active ? "page" : undefined} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm ${ item.active ? "bg-accent-cyan/10 text-accent-cyan" : "text-text-muted hover:bg-app-raised"}`}>
+                <Link key={item.label} href={item.href} aria-current={item.active ? "page" : undefined} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm ${ item.active ? "bg-accent-cyan/10 text-accent-cyan" : "text-text-muted hover:bg-app-raised"}`}>
                   {item.label}
-                </a>
+                </Link>
               ))}
 
             </nav>
@@ -434,14 +427,14 @@ return (
 
             {/* Summary cards */}
 
-            <section _aria-label_="Workout summary" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section aria-label="Workout summary" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
               {stats.map((stat) => (
 
                 <article key={stat.label} className="rounded-2xl border border-app-border bg-app-surface p-5 transition hover:border-slate-600">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm text-text-muted">{stat.label}</p>
-                    <span className={`flex size-10 items-center justify-center rounded-xl text-xl ${stat.iconBg} ${stat.color}`} _aria-hidden_="true">
+                    <span className={`flex size-10 items-center justify-center rounded-xl text-xl ${stat.iconBg} ${stat.color}`} aria-hidden="true">
                       {stat.icon}
                     </span>
 
@@ -487,7 +480,7 @@ return (
 
               <article className="rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6 xl:col-span-2">
 
-                <SectionHeading title="Weekly Activity" action="View history →"/>
+                <SectionHeading title="Weekly Activity" action="View history →" href="/workouts" />
 
                 <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
                   <div>
@@ -510,7 +503,7 @@ return (
 
                 </div>
 
-                <div className="grid h-44 grid-cols-7 items-end gap-3 sm:h-52 sm:gap-5" role="img" _aria-label_="Illustrative weekly activity chart, Monday through Sunday">
+                <div className="grid h-44 grid-cols-7 items-end gap-3 sm:h-52 sm:gap-5" role="img" aria-label="Illustrative weekly activity chart, Monday through Sunday">
 
                   {weeklyActivity.map((item, index) => (
 
@@ -573,7 +566,7 @@ return (
             {/* Recent workouts */}
 
             <section id="recent-workouts">
-              <SectionHeading title="Recent Workouts" action="View all →"/>
+              <SectionHeading title="Recent Workouts" action="View all →" href="/workouts" />
               <RecentWorkouts />
             </section>
 
@@ -592,7 +585,7 @@ return (
                      Keep showing up, tracking your workouts, and building habits. Small improvements add up over time.
                   </p>
                   <a href="#recent-workouts" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-accent-cyan hover:text-cyan-200">
-                    Review recent workouts <span _aria-hidden_="true">→</span>
+                    Review recent workouts <span aria-hidden="true">→</span>
                   </a>
                 </div>
 
