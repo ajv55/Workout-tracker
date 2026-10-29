@@ -17,64 +17,28 @@ const navigation = [
 
 ];
 
-const weeklyActivity = [
-
-  { day: "Mon", value: 65 },
-
-  { day: "Tue", value: 88 },
-
-  { day: "Wed", value: 45 },
-
-  { day: "Thu", value: 100 },
-
-  { day: "Fri", value: 72 },
-
-  { day: "Sat", value: 35 },
-
-  { day: "Sun", value: 15 },
-
-];
-
-function SectionHeading({
-
-title,
-
-action,
-
-}: {
-
+function SectionHeading({ title, action,}: {
   title: string;
-
   action?: string;
-
 }) {
-
 return (
 
     <div className="mb-5 flex items-center justify-between gap-3">
 
       <h2 className="text-base font-semibold text-text-primary sm:text-lg">
-
         {title}
-
       </h2>
 
       {action && (
-
         <button type="button" className="text-sm font-medium text-accent-cyan transition hover:text-cyan-200">
           {action}
         </button>
-
       )}
-
     </div>
-
   );
-
 }
 
 export async function DashboardContent() {
-
   const session = await auth();
 
   const userId = session?.user?.id;
@@ -138,6 +102,83 @@ export async function DashboardContent() {
         Math.round((workoutsThisWeek / weeklyGoal) * 100),
         100,
       );
+
+
+    const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const todayIndex = (new Date().getDay() + 6) % 7;
+
+const dailyTrainingMinutes = dayLabels.map((_, index) => {
+  const dayStart = new Date(weekStart);
+  dayStart.setUTCDate(dayStart.getUTCDate() + index);
+
+  const dayEnd = new Date(dayStart);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+
+  return workouts.reduce((total, workout) => {
+    const workoutDate = new Date(workout.date);
+
+    if (workoutDate >= dayStart && workoutDate < dayEnd) {
+      return total + (workout.durationMinutes ?? 0);
+    }
+
+    return total;
+  }, 0);
+});
+
+  const busiestDayMinutes = Math.max(...dailyTrainingMinutes, 0);
+
+  const weeklyActivity = dayLabels.map((day, index) => ({
+    day,
+    value:
+      busiestDayMinutes === 0
+        ? 0
+        : Math.round(
+            (dailyTrainingMinutes[index] / busiestDayMinutes) * 100,
+          ),
+  }));
+
+      const weeklyTrainingMinutes = dailyTrainingMinutes.reduce(
+      (total, minutes) => total + minutes,
+      0,
+    );
+
+      const weeklyTrainingHours = (weeklyTrainingMinutes / 60).toFixed(1);
+
+
+      const lastWeekStart = new Date(weekStart);
+      lastWeekStart.setUTCDate(lastWeekStart.getUTCDate() - 7);
+
+      const lastWeekEnd = new Date(weekStart);
+
+      const lastWeekTrainingMinutes = workouts.reduce((total, workout) => {
+        const workoutDate = new Date(workout.date);
+
+        if (workoutDate >= lastWeekStart && workoutDate < lastWeekEnd) {
+          return total + (workout.durationMinutes ?? 0);
+        }
+
+        return total;
+      }, 0);
+
+      const weeklyChange =
+        lastWeekTrainingMinutes === 0
+          ? null
+          : Math.round(
+              ((weeklyTrainingMinutes - lastWeekTrainingMinutes) /
+                lastWeekTrainingMinutes) *
+                100,
+            );
+
+      const weeklyChangeLabel =
+        weeklyChange === null
+          ? "First week"
+          : weeklyChange > 0
+            ? `+${weeklyChange}% this week`
+            : weeklyChange < 0
+              ? `${weeklyChange}% this week`
+              : "No change";
+
+
 
       const totalWorkouts = workouts.length;
       const totalTrainingMinutes = workouts.reduce(
@@ -336,90 +377,28 @@ return (
 
                   </span>
 
-                  <input
-
-type="search"
-
-placeholder="Search workouts..."
-
-_aria-label_="Search workouts"
-
-className="w-40 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-subtle"
-
-                  />
-
+                  <input type="search" placeholder="Search workouts..." _aria-label_="Search workouts" className="w-40 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-subtle"/>
                   <span className="text-xs text-text-subtle">⌘ K</span>
-
                 </label>
 
-                <button
-
-type="button"
-
-_aria-label_="Notifications"
-
-className="relative flex size-10 items-center justify-center rounded-xl border border-app-border bg-app-surface text-lg text-text-muted transition hover:text-text-primary"
-
-                >
-
+                <button type="button" _aria-label_="Notifications" className="relative flex size-10 items-center justify-center rounded-xl border border-app-border bg-app-surface text-lg text-text-muted transition hover:text-text-primary">
                   ♧
-
                   <span className="absolute right-2 top-2 size-2 rounded-full bg-accent-cyan" />
-
                 </button>
 
-                <a
-
-href="#recent-workouts"
-
-className="hidden items-center gap-2 rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-app-bg transition hover:bg-cyan-300 sm:inline-flex"
-
-                >
-
+                <a href="#recent-workouts" className="hidden items-center gap-2 rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-app-bg transition hover:bg-cyan-300 sm:inline-flex">
                   <span _aria-hidden_="true">+</span>
-
                   New Workout
-
                 </a>
 
               </div>
-
             </div>
 
-            <nav
-
-_aria-label_="Mobile navigation"
-
-className="mx-auto mt-4 flex max-w-7xl gap-2 overflow-x-auto lg:hidden"
-
-            >
-
+            <nav _aria-label_="Mobile navigation" className="mx-auto mt-4 flex max-w-7xl gap-2 overflow-x-auto lg:hidden">
               {navigation.map((item) => (
-
-                <a
-
-key={item.label}
-
-href="#"
-
-_aria-current_={item.active ? "page" : undefined}
-
-className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm ${
-
-                    item.active
-
-? "bg-accent-cyan/10 text-accent-cyan"
-
-: "text-text-muted hover:bg-app-raised"
-
-                  }`}
-
-                >
-
+                <a key={item.label} href="#" _aria-current_={item.active ? "page" : undefined} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm ${ item.active ? "bg-accent-cyan/10 text-accent-cyan" : "text-text-muted hover:bg-app-raised"}`}>
                   {item.label}
-
                 </a>
-
               ))}
 
             </nav>
@@ -519,100 +498,43 @@ className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium sm:text-sm ${
 
               <article className="rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6 xl:col-span-2">
 
-                <SectionHeading
-
-title="Weekly Activity"
-
-action="View history →"
-
-                />
+                <SectionHeading title="Weekly Activity" action="View history →"/>
 
                 <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-
                   <div>
-
-                    <p className="text-3xl font-bold">4.8 hours</p>
-
+                    <p className="text-3xl font-bold">{weeklyTrainingHours} hours</p>
                     <p className="mt-1 text-sm text-text-muted">
-
                       Training time this week
-
                     </p>
-
                   </div>
 
-                  <span className="rounded-lg bg-accent-emerald/10 px-3 py-2 text-xs font-semibold text-accent-emerald">
-
-                    +14.5% this week
-
-                  </span>
+                  
+                      <span
+                        className={`rounded-lg px-3 py-2 text-xs font-semibold ${
+                          weeklyChange !== null && weeklyChange < 0
+                            ? "bg-red-500/10 text-red-400"
+                            : "bg-accent-emerald/10 text-accent-emerald"
+                        }`}
+                      >
+                        {weeklyChangeLabel}
+                      </span>
 
                 </div>
 
-                <div
-
-className="grid h-44 grid-cols-7 items-end gap-3 sm:h-52 sm:gap-5"
-
-role="img"
-
-_aria-label_="Illustrative weekly activity chart, Monday through Sunday"
-
-                >
+                <div className="grid h-44 grid-cols-7 items-end gap-3 sm:h-52 sm:gap-5" role="img" _aria-label_="Illustrative weekly activity chart, Monday through Sunday">
 
                   {weeklyActivity.map((item, index) => (
 
-                    <div
-
-key={item.day}
-
-className="flex h-full flex-col items-center justify-end gap-3"
-
-                    >
-
+                    <div key={item.day} className="flex h-full flex-col items-center justify-end gap-3">
                       <div className="flex h-full w-full items-end justify-center">
-
-                        <div
-
-className={`w-full max-w-10 rounded-t-lg transition-opacity ${
-
-                            index === 3
-
-? "bg-accent-cyan"
-
-: "bg-accent-cyan/25 hover:bg-accent-cyan/50"
-
-                          }`}
-
-style={{ height: `${item.value}%` }}
-
-                        />
-
+                        <div className={`w-full max-w-10 rounded-t-lg transition-opacity ${ index === todayIndex ? "bg-accent-cyan" : "bg-accent-cyan/25 hover:bg-accent-cyan/50"}`} style={{ height: `${item.value}%` }}/>
                       </div>
-
-                      <span
-
-className={`text-xs ${
-
-                          index === 3
-
-? "font-semibold text-accent-cyan"
-
-: "text-text-subtle"
-
-                        }`}
-
-                      >
-
+                      <span className={`text-xs ${ index === todayIndex ? "font-semibold text-accent-cyan" : "text-text-subtle"}`}>
                         {item.day}
-
                       </span>
-
                     </div>
-
                   ))}
-
                 </div>
-
               </article>
 
               <article className="rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6">
