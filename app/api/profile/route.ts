@@ -6,6 +6,11 @@ import {
   estimateDailyEnergy,
   type ActivityLevel,
 } from "@/app/lib/daily-energy";
+import {
+  estimateCalorieTarget,
+  type FitnessGoal,
+  type TargetEligibility,
+} from "@/app/lib/calorie-target";
 import { updateProfileSchema } from "@/app/lib/validations/profile";
 
 const profileSelect = {
@@ -15,6 +20,7 @@ const profileSelect = {
   weightKg: true,
   activityLevel: true,
   goal: true,
+  targetEligibility: true,
 } as const;
 
 const responseHeaders = {
@@ -27,7 +33,8 @@ type FitnessProfile = {
   heightCm: number | null;
   weightKg: number | null;
   activityLevel: ActivityLevel | null;
-  goal: string | null;
+  goal: FitnessGoal | null;
+  targetEligibility: TargetEligibility | null;
 };
 
 function buildProfileResponse(profile: FitnessProfile) {
@@ -38,13 +45,24 @@ function buildProfileResponse(profile: FitnessProfile) {
     weightKg: profile.weightKg,
   };
 
+  const restingEnergy = estimateRestingEnergy(energyInput);
+
+  const dailyEnergy = estimateDailyEnergy({
+    ...energyInput,
+    activityLevel: profile.activityLevel,
+  });
+
+  const calorieTarget = estimateCalorieTarget({
+    dailyEnergy,
+    goal: profile.goal,
+    eligibility: profile.targetEligibility,
+  });
+
   return {
     profile,
-    restingEnergy: estimateRestingEnergy(energyInput),
-    dailyEnergy: estimateDailyEnergy({
-      ...energyInput,
-      activityLevel: profile.activityLevel,
-    }),
+    restingEnergy,
+    dailyEnergy,
+    calorieTarget,
   };
 }
 

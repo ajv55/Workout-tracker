@@ -6,6 +6,11 @@ import type {
   ActivityLevel,
   DailyEnergyResult,
 } from "@/app/lib/daily-energy";
+import type {
+  CalorieTargetResult,
+  FitnessGoal,
+  TargetEligibility,
+} from "@/app/lib/calorie-target";
 
 type EquationSex = "MALE" | "FEMALE";
 
@@ -16,9 +21,12 @@ type ProfileResponse = {
     heightCm: number | null;
     weightKg: number | null;
     activityLevel: ActivityLevel | null;
+    goal: FitnessGoal | null;
+    targetEligibility: TargetEligibility | null;
   };
   restingEnergy: RestingEnergyResult;
   dailyEnergy: DailyEnergyResult;
+  calorieTarget: CalorieTargetResult;
 };
 
 type ProfileForm = {
@@ -28,6 +36,8 @@ type ProfileForm = {
   heightInches: string;
   weightLb: string;
   activityLevel: ActivityLevel | "";
+  goal: FitnessGoal | "";
+  targetEligibility: TargetEligibility | "";
 };
 
 const CM_PER_INCH = 2.54;
@@ -63,6 +73,21 @@ const activityOptions = [
   },
 ] as const;
 
+const goalOptions = [
+  { value: "MAINTAIN_WEIGHT", label: "Maintain weight" },
+  { value: "LOSE_WEIGHT", label: "Lose weight" },
+  { value: "GAIN_WEIGHT", label: "Gain weight" },
+] as const;
+
+const eligibilityOptions = [
+  { value: "GENERAL_ADULT", label: "General adult estimate applies" },
+  {
+    value: "SPECIALIST_GUIDANCE",
+    label: "I need individualized nutrition guidance",
+  },
+  { value: "UNSURE", label: "Not sure / prefer not to answer" },
+] as const;
+
 const emptyForm: ProfileForm = {
   age: "",
   metabolicSex: "",
@@ -70,6 +95,8 @@ const emptyForm: ProfileForm = {
   heightInches: "",
   weightLb: "",
   activityLevel: "",
+  goal: "",
+  targetEligibility: "",
 };
 
 const fieldLabels = {
@@ -81,6 +108,9 @@ const fieldLabels = {
 
 const inputClass =
   "mt-2 w-full rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm";
+
+const cardClass =
+  "rounded-2xl border border-app-border bg-app-surface p-6";
 
 function toForm(profile: ProfileResponse["profile"]): ProfileForm {
   const totalInches =
@@ -106,6 +136,8 @@ function toForm(profile: ProfileResponse["profile"]): ProfileForm {
         ? ""
         : Number((profile.weightKg / KG_PER_POUND).toFixed(1)).toString(),
     activityLevel: profile.activityLevel ?? "",
+    goal: profile.goal ?? "",
+    targetEligibility: profile.targetEligibility ?? "",
   };
 }
 
@@ -166,7 +198,7 @@ function DailyEstimate({ result }: { result: DailyEnergyResult }) {
   if (result.status === "unavailable") {
     const message =
       result.reason === "missing-activity-level"
-        ? "Select and save your typical activity level to calculate this estimate."
+        ? "Select and save your typical activity level."
         : result.reason === "invalid-activity-level"
           ? "Select a valid activity level and save your profile."
           : "Complete or correct the resting-energy inputs first.";
@@ -181,17 +213,71 @@ function DailyEstimate({ result }: { result: DailyEnergyResult }) {
   return (
     <>
       <Calories value={result.kcalPerDay} />
-
       <p className="mt-3 text-sm text-text-muted">
         Resting estimate × {result.activityMultiplier} activity factor
         {" "}({activity?.label}).
       </p>
-
       <p className="mt-3 text-sm text-text-muted">
-        An approximate average daily expenditure at your current weight
-        and typical activity level. Individual needs can differ.
-        Regular exercise is included; logged workout calories are not
-        added again. This is not a weight-loss or weight-gain target.
+        Approximate average daily expenditure. Individual needs can differ.
+        Regular exercise is included; logged workout calories are not added
+        again.
+      </p>
+    </>
+  );
+}
+
+function TargetEstimate({ result }: { result: CalorieTargetResult }) {
+  if (result.status === "unavailable") {
+    const messages = {
+      "missing-eligibility":
+        "Select and save whether this general estimator applies to you.",
+      "specialist-guidance":
+        "An automated intake target is not provided. Discuss an individualized target with your qualified health professional.",
+      "eligibility-uncertain":
+        "No automated intake target is provided while applicability is uncertain or unanswered.",
+      "invalid-eligibility":
+        "Check your estimator applicability selection and save again.",
+      "missing-goal":
+        "Select and save a goal to calculate a starting intake estimate.",
+      "invalid-goal":
+        "Select a valid goal and save again.",
+      "daily-energy-unavailable":
+        "Complete the inputs needed for estimated daily expenditure first.",
+      "invalid-daily-energy":
+        "Daily expenditure could not be used to calculate a target.",
+      "below-application-threshold":
+        "The calculated target is below this app’s supported range. No automated intake target is provided.",
+    } satisfies Record<
+      Extract<CalorieTargetResult, { status: "unavailable" }>["reason"],
+      string
+    >;
+
+    return (
+      <p className="mt-3 text-sm text-text-muted">
+        {messages[result.reason]}
+      </p>
+    );
+  }
+
+  const goal = goalOptions.find((option) => option.value === result.goal);
+  const adjustment = result.adjustmentKcalPerDay;
+  const adjustmentLabel =
+    adjustment === 0
+      ? "No adjustment from estimated maintenance."
+      : `${adjustment > 0 ? "+" : "−"}${Math.round(
+          Math.abs(adjustment),
+        ).toLocaleString("en-US")} kcal/day from estimated maintenance.`;
+
+  return (
+    <>
+      <Calories value={result.kcalPerDay} />
+      <p className="mt-3 text-sm text-text-muted">
+        {goal?.label}. {adjustmentLabel}
+      </p>
+      <p className="mt-3 text-sm text-text-muted">
+        A starting intake estimate, not a prescription or a guaranteed rate
+        of weight change. Review your needs with a qualified professional
+        when appropriate.
       </p>
     </>
   );
@@ -345,6 +431,8 @@ export default function FitnessProfile() {
           weightKg,
           metabolicSex: form.metabolicSex || null,
           activityLevel: form.activityLevel || null,
+          goal: form.goal || null,
+          targetEligibility: form.targetEligibility || null,
         }),
       });
 
@@ -394,10 +482,7 @@ export default function FitnessProfile() {
 
   return (
     <div className="space-y-6">
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-2xl border border-app-border bg-app-surface p-6"
-      >
+      <form onSubmit={handleSubmit} className={cardClass}>
         <h2 className="text-lg font-semibold">Your fitness profile</h2>
 
         <p id="profile-help" className="mt-2 text-sm text-text-muted">
@@ -514,6 +599,14 @@ export default function FitnessProfile() {
             </select>
           </label>
 
+          <p
+            id="equation-sex-help"
+            className="text-xs text-text-muted sm:col-span-2"
+          >
+            These are the original equation’s two sex categories.
+            They do not capture every individual’s physiology.
+          </p>
+
           <label
             htmlFor="profile-activity"
             className="text-sm font-medium sm:col-span-2"
@@ -535,9 +628,7 @@ export default function FitnessProfile() {
                   (item) => item.value === value,
                 );
 
-                if (option) {
-                  updateField("activityLevel", option.value);
-                }
+                if (option) updateField("activityLevel", option.value);
               }}
               className={inputClass}
             >
@@ -554,18 +645,88 @@ export default function FitnessProfile() {
             id="activity-help"
             className="text-sm text-text-muted sm:col-span-2"
           >
-            {selectedActivity
-              ? `${selectedActivity.description} `
-              : ""}
+            {selectedActivity ? `${selectedActivity.description} ` : ""}
             Consider your work, transport, everyday movement, and regular
-            exercise across a typical week—not just your hardest workout.
+            exercise across a typical week.
+          </p>
+
+          <label htmlFor="profile-goal" className="text-sm font-medium">
+            Goal
+            <select
+              id="profile-goal"
+              value={form.goal}
+              onChange={(event) => {
+                const value = event.target.value;
+
+                if (value === "") {
+                  updateField("goal", "");
+                  return;
+                }
+
+                const option = goalOptions.find(
+                  (item) => item.value === value,
+                );
+
+                if (option) updateField("goal", option.value);
+              }}
+              className={inputClass}
+            >
+              <option value="">Select a goal</option>
+              {goalOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label
+            htmlFor="profile-eligibility"
+            className="text-sm font-medium sm:col-span-2"
+          >
+            Does this general intake estimator apply to you?
+            <select
+              id="profile-eligibility"
+              value={form.targetEligibility}
+              aria-describedby="eligibility-help"
+              onChange={(event) => {
+                const value = event.target.value;
+
+                if (value === "") {
+                  updateField("targetEligibility", "");
+                  return;
+                }
+
+                const option = eligibilityOptions.find(
+                  (item) => item.value === value,
+                );
+
+                if (option) {
+                  updateField("targetEligibility", option.value);
+                }
+              }}
+              className={inputClass}
+            >
+              <option value="">Select an option</option>
+              {eligibilityOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <p
+            id="eligibility-help"
+            className="text-sm text-text-muted sm:col-span-2"
+          >
+            Choose individualized guidance if you are pregnant,
+            breastfeeding, or have a condition or treatment requiring
+            medically supervised nutrition. If unsure, select that option.
+            This selection does not establish medical suitability.
+            Workout tracking remains available regardless of your answer.
           </p>
         </fieldset>
-
-        <p id="equation-sex-help" className="mt-4 text-xs text-text-muted">
-          These are the original equation’s two sex categories.
-          They do not capture every individual’s physiology.
-        </p>
 
         {saveError && (
           <p role="alert" className="mt-4 text-sm text-red-400">
@@ -592,7 +753,7 @@ export default function FitnessProfile() {
 
       <section
         aria-labelledby="resting-energy-heading"
-        className="rounded-2xl border border-app-border bg-app-surface p-6"
+        className={cardClass}
       >
         <h2 id="resting-energy-heading" className="text-lg font-semibold">
           Estimated resting calories
@@ -602,12 +763,22 @@ export default function FitnessProfile() {
 
       <section
         aria-labelledby="daily-energy-heading"
-        className="rounded-2xl border border-app-border bg-app-surface p-6"
+        className={cardClass}
       >
         <h2 id="daily-energy-heading" className="text-lg font-semibold">
           Estimated daily expenditure (TDEE)
         </h2>
         <DailyEstimate result={data.dailyEnergy} />
+      </section>
+
+      <section
+        aria-labelledby="calorie-target-heading"
+        className={cardClass}
+      >
+        <h2 id="calorie-target-heading" className="text-lg font-semibold">
+          Starting daily intake estimate
+        </h2>
+        <TargetEstimate result={data.calorieTarget} />
       </section>
     </div>
   );

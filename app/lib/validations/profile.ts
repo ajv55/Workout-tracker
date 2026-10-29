@@ -32,6 +32,15 @@ export const updateProfileSchema = z
       ])
       .nullable()
       .optional(),
+
+    targetEligibility: z
+      .enum([
+        "GENERAL_ADULT",
+        "SPECIALIST_GUIDANCE",
+        "UNSURE",
+      ])
+      .nullable()
+      .optional(),
   })
   .strict()
   .refine(
