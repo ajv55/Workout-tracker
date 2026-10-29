@@ -23,6 +23,8 @@ type WorkoutHistoryResponse = {
   pagination: Pagination;
 };
 
+type HistoryRange = "all" | "week" | "month";
+
 const workoutDateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -35,6 +37,7 @@ export default function WorkoutHistory() {
   const [data, setData] = useState<WorkoutHistoryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState<HistoryRange>("all");
 
   useEffect(() => {
   let active = true;
@@ -45,7 +48,7 @@ export default function WorkoutHistory() {
 
     try {
       const response = await fetch(
-        `/api/workouts?page=${page}&pageSize=10`,
+        `/api/workouts?page=${page}&pageSize=10&range=${range}`,
         {
           cache: "no-store",
         },
@@ -84,83 +87,113 @@ export default function WorkoutHistory() {
   return () => {
     active = false;
   };
-}, [page]);
-
-  if (loading) {
-    return (
-      <p className="text-sm text-text-muted" role="status">
-        Loading your workout history...
-      </p>
-    );
-  }
-
-  if (error) {
-    return (
-      <p className="text-sm text-red-400" role="alert">
-        {error}
-      </p>
-    );
-  }
-
-  if (!data) return null;
+}, [page, range]);
 
   return (
     <section aria-label="Workout history">
-      {data.workouts.length === 0 ? (
-        <p className="text-sm text-text-muted">
-          {data.pagination.total === 0
-            ? "No workouts yet. Your recorded workouts will appear here."
-            : "No workouts on this page. Go back to an earlier page."}
-        </p>
-      ) : (
-        <ul className="divide-y divide-app-border rounded-2xl border border-app-border bg-app-surface">
-          {data.workouts.map((workout) => (
-            <li key={workout.id} className="p-5">
-              <h2 className="font-semibold">{workout.title}</h2>
-              <time
-                dateTime={workout.date}
-                className="mt-1 block text-sm text-text-muted"
-                >
-                {workoutDateFormatter.format(new Date(workout.date))}
-            </time>
-              <p className="mt-1 text-sm text-text-muted">
-                {workout.durationMinutes != null
-                  ? `${workout.durationMinutes} min`
-                  : "Duration not set"}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
+        <div className="mb-6">
+            <label
+                htmlFor="history-range"
+                className="mb-2 block text-sm font-medium"
+            >
+                Date range (UTC)
+            </label>
 
-      <nav
-        aria-label="Workout history pagination"
-        className="mt-6 flex items-center justify-between gap-4"
-      >
-        <button
-          type="button"
-          disabled={page === 1}
-          onClick={() => setPage((currentPage) => currentPage - 1)}
-          className="rounded-lg border border-app-border px-4 py-2 text-sm text-accent-cyan disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Previous
-        </button>
+            <select
+                id="history-range"
+                value={range}
+                onChange={(event) => {
+                const nextRange = event.target.value;
 
-        <p className="text-sm text-text-muted" role="status">
-          {data.pagination.total === 0
-            ? "0 workouts"
-            : `Page ${data.pagination.page} of ${data.pagination.totalPages}`}
-        </p>
+                if (
+                    nextRange === "all" ||
+                    nextRange === "week" ||
+                    nextRange === "month"
+                ) {
+                    setRange(nextRange);
+                    setPage(1);
+                }
+                }}
+                className="rounded-lg border border-app-border bg-app-surface px-3 py-2 text-sm text-text-primary"
+            >
+                <option value="all">All time</option>
+                <option value="week">This week</option>
+                <option value="month">This month</option>
+            </select>
+            </div>
 
-        <button
-          type="button"
-          disabled={!data.pagination.hasNextPage}
-          onClick={() => setPage((currentPage) => currentPage + 1)}
-          className="rounded-lg border border-app-border px-4 py-2 text-sm text-accent-cyan disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Next
-        </button>
-      </nav>
+
+            {loading ? (
+                <p className="text-sm text-text-muted" role="status">
+                    Loading your workout history...
+                </p>
+                ) : error ? (
+                <p className="text-sm text-red-400" role="alert">
+                    {error}
+                </p>
+                ) : data ? (
+                <>
+                    {/* Move your existing empty-state/list conditional here. */}
+
+                    {data.workouts.length === 0 ? (
+                        <p className="text-sm text-text-muted">
+                        {data.pagination.total === 0
+                            ? "No workouts yet. Your recorded workouts will appear here."
+                            : "No workouts on this page. Go back to an earlier page."}
+                        </p>
+                    ) : (
+                        <ul className="divide-y divide-app-border rounded-2xl border border-app-border bg-app-surface">
+                        {data.workouts.map((workout) => (
+                            <li key={workout.id} className="p-5">
+                            <h2 className="font-semibold">{workout.title}</h2>
+                            <time
+                                dateTime={workout.date}
+                                className="mt-1 block text-sm text-text-muted"
+                                >
+                                {workoutDateFormatter.format(new Date(workout.date))}
+                            </time>
+                            <p className="mt-1 text-sm text-text-muted">
+                                {workout.durationMinutes != null
+                                ? `${workout.durationMinutes} min`
+                                : "Duration not set"}
+                            </p>
+                            </li>
+                        ))}
+                        </ul>
+                    )}
+
+                    {/* Move your existing pagination <nav> here. */}
+                    <nav
+                        aria-label="Workout history pagination"
+                        className="mt-6 flex items-center justify-between gap-4"
+                    >
+                        <button
+                        type="button"
+                        disabled={page === 1}
+                        onClick={() => setPage((currentPage) => currentPage - 1)}
+                        className="rounded-lg border border-app-border px-4 py-2 text-sm text-accent-cyan disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                        Previous
+                        </button>
+
+                        <p className="text-sm text-text-muted" role="status">
+                        {data.pagination.total === 0
+                            ? "0 workouts"
+                            : `Page ${data.pagination.page} of ${data.pagination.totalPages}`}
+                        </p>
+
+                        <button
+                        type="button"
+                        disabled={!data.pagination.hasNextPage}
+                        onClick={() => setPage((currentPage) => currentPage + 1)}
+                        className="rounded-lg border border-app-border px-4 py-2 text-sm text-accent-cyan disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                        Next
+                        </button>
+                    </nav>
+                </>
+                ) : null}
+
     </section>
   );
 }

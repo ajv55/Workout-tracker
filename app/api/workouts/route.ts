@@ -7,6 +7,7 @@ import { z } from "zod";
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).max(100_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
+  range: z.enum(["all", "week", "month"]).default("all"),
 });
 
 export async function GET(request: Request) {
@@ -27,6 +28,7 @@ export async function GET(request: Request) {
     const paginationResult = paginationSchema.safeParse({
     page: searchParams.get("page") ?? undefined,
     pageSize: searchParams.get("pageSize") ?? undefined,
+    range: searchParams.get("range") ?? undefined,
     });
 
     if (!paginationResult.success) {
@@ -39,14 +41,43 @@ export async function GET(request: Request) {
     );
     }
 
-    const { page, pageSize } = paginationResult.data;
-    const skip = (page - 1) * pageSize;
+    const { page, pageSize, range } = paginationResult.data;
+const skip = (page - 1) * pageSize;
+
+const now = new Date();
+let startDate: Date | undefined;
+
+if (range === "week") {
+  const daysSinceMonday = (now.getUTCDay() + 6) % 7;
+
+  startDate = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - daysSinceMonday,
+    ),
+  );
+} else if (range === "month") {
+  startDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
+}
+
+const where = {
+  userId: session.user.id,
+  ...(startDate
+    ? {
+        date: {
+          gte: startDate,
+          lte: now,
+        },
+      }
+    : {}),
+};
 
   try {
     const workouts = await prisma.workout.findMany({
-        where: {
-            userId: session.user.id,
-        },
+        where,
         orderBy: [
             { date: "desc" },
             { id: "desc" },
@@ -58,15 +89,13 @@ export async function GET(request: Request) {
             }
             : {}),
         });
-        
+
         if (!paginationRequested) {
                 return NextResponse.json({ workouts }, { status: 200 });
                 }
 
                 const total = await prisma.workout.count({
-                where: {
-                    userId: session.user.id,
-                },
+                where,
                 });
 
                 const totalPages = Math.ceil(total / pageSize);
