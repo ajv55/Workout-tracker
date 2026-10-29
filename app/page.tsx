@@ -292,29 +292,18 @@ return (
           </nav>
 
           <div className="mt-auto rounded-2xl border border-app-border bg-app-raised p-4">
-
             <div className="mb-3 flex size-9 items-center justify-center rounded-xl bg-accent-violet/10 text-xl text-accent-violet">
-
               ✦
-
             </div>
-
             <h3 className="mb-1 text-sm font-semibold">Stay consistent</h3>
-
             <p className="mb-4 text-xs leading-5 text-text-muted">
-
               Every workout brings you closer to your goals.
-
             </p>
-
             <div className="h-1.5 overflow-hidden rounded-full bg-app-border">
-
-              <div className="h-full w-4/5 rounded-full bg-accent-violet" />
-
-            </div>
-
-            <p className="mt-2 text-xs text-text-muted">Weekly goal: 80%</p>
-
+              <div className="h-full rounded-full bg-accent-violet transition-all duration-300" style={{ width: `${weeklyGoalProgress}%` }} /></div>
+            <p className="mt-2 text-xs text-text-muted">
+              Weekly goal: {weeklyGoalProgress}%
+            </p>
           </div>
 
           <div className="mt-5 flex items-center gap-3 border-t border-app-border pt-5">
@@ -537,15 +526,23 @@ return (
                 </div>
               </article>
 
+             
               <article className="rounded-2xl border border-app-border bg-app-surface p-5 sm:p-6">
-
                 <SectionHeading title="Weekly Goal" />
 
                 <div className="flex flex-col items-center py-3">
-
-                  <div className="relative flex size-40 items-center justify-center rounded-full" style={{ background: "conic-gradient(#22d3ee 0% 80%, #26364a 80% 100%)", }} role="img" _aria-label_="Weekly goal 80 percent complete">
+                  <div
+                    className="relative flex size-40 items-center justify-center rounded-full"
+                    style={{
+                      background: `conic-gradient(#22d3ee 0% ${weeklyGoalProgress}%, #26364a ${weeklyGoalProgress}% 100%)`,
+                    }}
+                    role="img"
+                    aria-label={`Weekly goal ${weeklyGoalProgress}% complete`}
+                  >
                     <div className="flex size-32 flex-col items-center justify-center rounded-full bg-app-surface">
-                      <span className="text-3xl font-bold">80%</span>
+                      <span className="text-3xl font-bold">
+                        {weeklyGoalProgress}%
+                      </span>
                       <span className="mt-1 text-xs text-text-muted">
                         Completed
                       </span>
@@ -553,28 +550,23 @@ return (
                   </div>
 
                   <p className="mt-5 text-center text-sm text-text-muted">
-
                     You&apos;ve completed{" "}
-
                     <span className="font-semibold text-text-primary">
-
-                      4 of 5 workouts
-
+                      {Math.min(workoutsThisWeek, weeklyGoal)} of {weeklyGoal} workouts
                     </span>{" "}
-
                     this week.
-
                   </p>
 
                   <div className="mt-5 w-full rounded-xl bg-accent-emerald/10 p-3 text-center text-sm text-accent-emerald">
-
-                    One more workout to hit your goal!
-
+                    {workoutsThisWeek >= weeklyGoal
+                      ? "Weekly goal reached! Great work!"
+                      : `${weeklyGoal - workoutsThisWeek} more ${
+                          weeklyGoal - workoutsThisWeek === 1 ? "workout" : "workouts"
+                        } to hit your goal!`}
                   </div>
-
                 </div>
-
               </article>
+
 
             </section>
 
