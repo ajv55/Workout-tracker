@@ -21,6 +21,12 @@ type Pagination = {
 type WorkoutHistoryResponse = {
   workouts: Workout[];
   pagination: Pagination;
+  analytics: {
+    workoutCount: number;
+    workoutsWithDuration: number;
+    totalTrainingMinutes: number;
+    averageDurationMinutes: number | null;
+  };
 };
 
 type HistoryRange = "all" | "week" | "month";
@@ -132,7 +138,39 @@ export default function WorkoutHistory() {
                     {error}
                 </p>
                 ) : data ? (
+                    
                 <>
+                <dl className="mb-6 grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-app-border bg-app-surface p-5">
+                        <dt className="text-sm text-text-muted">Workouts</dt>
+                        <dd className="mt-2 text-2xl font-bold">
+                        {data.analytics.workoutCount}
+                        </dd>
+                    </div>
+
+                    <div className="rounded-2xl border border-app-border bg-app-surface p-5">
+                        <dt className="text-sm text-text-muted">Training time</dt>
+                        <dd className="mt-2 text-2xl font-bold">
+                        {data.analytics.totalTrainingMinutes} min
+                        </dd>
+                    </div>
+
+                    <div className="rounded-2xl border border-app-border bg-app-surface p-5">
+                        <dt className="text-sm text-text-muted">
+                        Average recorded duration
+                        </dt>
+                        <dd className="mt-2 text-2xl font-bold">
+                        {data.analytics.averageDurationMinutes === null
+                            ? "—"
+                            : `${data.analytics.averageDurationMinutes.toFixed(1)} min`}
+                        </dd>
+                        <dd className="mt-1 text-xs text-text-muted">
+                        Based on {data.analytics.workoutsWithDuration} workouts with
+                        recorded duration
+                        </dd>
+                    </div>
+                    </dl>
+
                     {/* Move your existing empty-state/list conditional here. */}
 
                     {data.workouts.length === 0 ? (

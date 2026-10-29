@@ -94,25 +94,43 @@ const where = {
                 return NextResponse.json({ workouts }, { status: 200 });
                 }
 
-                const total = await prisma.workout.count({
-                where,
-                });
+                const summary = await prisma.workout.aggregate({
+                        where,
+                        _count: {
+                            _all: true,
+                            durationMinutes: true,
+                        },
+                        _sum: {
+                            durationMinutes: true,
+                        },
+                        _avg: {
+                            durationMinutes: true,
+                        },
+                        });
+
+                        const total = summary._count._all;
 
                 const totalPages = Math.ceil(total / pageSize);
 
                 return NextResponse.json(
-                {
-                    workouts,
-                    pagination: {
-                    page,
-                    pageSize,
-                    total,
-                    totalPages,
-                    hasNextPage: page < totalPages,
-                    },
-                },
-                { status: 200 },
-                );
+                        {
+                            workouts,
+                            pagination: {
+                            page,
+                            pageSize,
+                            total,
+                            totalPages,
+                            hasNextPage: page < totalPages,
+                            },
+                            analytics: {
+                            workoutCount: total,
+                            workoutsWithDuration: summary._count.durationMinutes,
+                            totalTrainingMinutes: summary._sum.durationMinutes ?? 0,
+                            averageDurationMinutes: summary._avg.durationMinutes,
+                            },
+                        },
+                        { status: 200 },
+                        );
   } catch (error: unknown) {
     console.error("Failed to fetch workouts:", error);
 
