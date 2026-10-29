@@ -2,8 +2,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
 import { createWorkoutSchema } from "@/app/lib/validations/workout";
+import { z } from "zod";
 
-export async function GET() {
+const paginationSchema = z.object({
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+export async function GET(request: Request) {
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -13,20 +19,71 @@ export async function GET() {
     );
   }
 
-  try {
-    const workouts = await prisma.workout.findMany({
-      where: {
-        userId: session.user.id,
-      },
-      orderBy: {
-        date: "desc",
-      },
+   const searchParams = new URL(request.url).searchParams;
+
+    const paginationRequested =
+    searchParams.has("page") || searchParams.has("pageSize");
+
+    const paginationResult = paginationSchema.safeParse({
+    page: searchParams.get("page") ?? undefined,
+    pageSize: searchParams.get("pageSize") ?? undefined,
     });
 
+    if (!paginationResult.success) {
     return NextResponse.json(
-      { workouts },
-      { status: 200 }
+        {
+        message: "Invalid pagination parameters",
+        errors: paginationResult.error.flatten().fieldErrors,
+        },
+        { status: 400 },
     );
+    }
+
+    const { page, pageSize } = paginationResult.data;
+    const skip = (page - 1) * pageSize;
+
+  try {
+    const workouts = await prisma.workout.findMany({
+        where: {
+            userId: session.user.id,
+        },
+        orderBy: [
+            { date: "desc" },
+            { id: "desc" },
+        ],
+        ...(paginationRequested
+            ? {
+                skip,
+                take: pageSize,
+            }
+            : {}),
+        });
+        
+        if (!paginationRequested) {
+                return NextResponse.json({ workouts }, { status: 200 });
+                }
+
+                const total = await prisma.workout.count({
+                where: {
+                    userId: session.user.id,
+                },
+                });
+
+                const totalPages = Math.ceil(total / pageSize);
+
+                return NextResponse.json(
+                {
+                    workouts,
+                    pagination: {
+                    page,
+                    pageSize,
+                    total,
+                    totalPages,
+                    hasNextPage: page < totalPages,
+                    },
+                },
+                { status: 200 },
+                );
   } catch (error: unknown) {
     console.error("Failed to fetch workouts:", error);
 
