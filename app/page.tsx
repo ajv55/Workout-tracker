@@ -105,7 +105,7 @@ export async function DashboardContent() {
 
 
     const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const todayIndex = (new Date().getDay() + 6) % 7;
+    const todayIndex = (dayOfWeek + 6) % 7;
 
 const dailyTrainingMinutes = dayLabels.map((_, index) => {
   const dayStart = new Date(weekStart);
