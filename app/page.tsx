@@ -368,10 +368,10 @@ return (
                   <span className="absolute right-2 top-2 size-2 rounded-full bg-accent-cyan" />
                 </button>
 
-                <a href="/workouts/new" className="hidden items-center gap-2 rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-app-bg transition hover:bg-cyan-300 sm:inline-flex">
+                <Link href="/workouts/new" className="hidden items-center gap-2 rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-app-bg transition hover:bg-cyan-300 sm:inline-flex">
                   <span aria-hidden="true">+</span>
                   New Workout
-                </a>
+                </Link>
 
               </div>
             </div>

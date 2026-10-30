@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Workout = {
@@ -33,9 +34,7 @@ export default function RecentWorkouts() {
       try {
         const response = await fetch(
           "/api/workouts?page=1&pageSize=3",
-          {
-            cache: "no-store",
-          },
+          { cache: "no-store" },
         );
 
         if (!response.ok) {
@@ -48,9 +47,7 @@ export default function RecentWorkouts() {
 
         const data: WorkoutsResponse = await response.json();
 
-        if (active) {
-          setWorkouts(data.workouts);
-        }
+        if (active) setWorkouts(data.workouts);
       } catch (error: unknown) {
         if (active) {
           setError(
@@ -60,9 +57,7 @@ export default function RecentWorkouts() {
           );
         }
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
@@ -111,7 +106,14 @@ export default function RecentWorkouts() {
             </div>
 
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold">{workout.title}</h3>
+              <h3 className="font-semibold">
+                <Link
+                  href={`/workouts/${workout.id}`}
+                  className="rounded-sm hover:text-accent-cyan hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-cyan"
+                >
+                  {workout.title}
+                </Link>
+              </h3>
 
               <time
                 dateTime={workout.date}
