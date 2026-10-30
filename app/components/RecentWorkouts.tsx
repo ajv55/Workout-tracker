@@ -14,55 +14,64 @@ type WorkoutsResponse = {
   workouts: Workout[];
 };
 
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 export default function RecentWorkouts() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  
-  
-useEffect(() => {
-  async function fetchWorkouts() {
-    try {
-      const response = await fetch("/api/workouts", {
-        cache: "no-store",
-      });
+  useEffect(() => {
+    let active = true;
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error("Sign in to view your workouts.");
+    async function fetchWorkouts() {
+      try {
+        const response = await fetch(
+          "/api/workouts?page=1&pageSize=3",
+          {
+            cache: "no-store",
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            response.status === 401
+              ? "Sign in to view your workouts."
+              : "Unable to load your workouts.",
+          );
         }
 
-        throw new Error("Unable to load your workouts.");
+        const data: WorkoutsResponse = await response.json();
+
+        if (active) {
+          setWorkouts(data.workouts);
+        }
+      } catch (error: unknown) {
+        if (active) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Something went wrong while loading workouts.",
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-
-      const data: WorkoutsResponse = await response.json();
-      setWorkouts(data.workouts);
-    } catch (error: unknown) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong while loading workouts.",
-      );
-    } finally {
-      setLoading(false);
     }
-  }
 
-  void fetchWorkouts();
-}, []);
+    void fetchWorkouts();
 
-
-
-  function formatDate(date: string) {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date(date));
-  }
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-app-border bg-app-surface">
@@ -79,11 +88,11 @@ useEffect(() => {
           No workouts yet. Your workouts will appear here once you create one.
         </p>
       ) : (
-        workouts.slice(0, 3).map((workout, index) => (
+        workouts.map((workout, index) => (
           <article
             key={workout.id}
             className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5 ${
-              index !== Math.min(workouts.length, 3) - 1
+              index !== workouts.length - 1
                 ? "border-b border-app-border"
                 : ""
             }`}
@@ -103,9 +112,14 @@ useEffect(() => {
 
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold">{workout.title}</h3>
-              <p className="mt-1 text-sm text-text-muted">
-                {formatDate(workout.date)}
-              </p>
+
+              <time
+                dateTime={workout.date}
+                className="mt-1 block text-sm text-text-muted"
+              >
+                {dateFormatter.format(new Date(workout.date))}
+              </time>
+
               {workout.notes && (
                 <p className="mt-1 truncate text-sm text-text-subtle">
                   {workout.notes}
