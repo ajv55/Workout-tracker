@@ -43,15 +43,36 @@ export type CreateWorkoutInput = z.infer<
 
 export const updateWorkoutSchema = z
   .object({
-    title: z.string().trim().min(1, "Title is required").max(100).optional(),
-    durationMinutes: z.number().int().positive().optional(),
-    notes: z.string().trim().max(1000).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Title is required")
+      .max(100)
+      .optional(),
+
+    date: workoutDateSchema.optional(),
+
+    durationMinutes: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .optional(),
+
+    notes: z
+      .string()
+      .trim()
+      .max(1000)
+      .nullable()
+      .optional(),
   })
   .strict()
   .refine(
     (data) =>
       Object.values(data).some((value) => value !== undefined),
-    { message: "At least one field must be provided" },
+    {
+      message: "At least one field must be provided",
+    },
   );
 
 export type UpdateWorkoutInput = z.infer<
