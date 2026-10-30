@@ -54,7 +54,6 @@ model User {
   // No default: automated intake targets require an explicit selection.
   targetEligibility TargetEligibility?
 
-  // Relationships
   workouts        Workout[]
   customExercises Exercise[]
 }
@@ -79,10 +78,10 @@ model Exercise {
   category    String
   description String?
 
-  // Null ownerId means a shared, built-in exercise.
-  // A populated ownerId means a user-created custom exercise.
+  // Shared exercises explicitly store ownerId as null.
+  // Custom exercises belong to their creator.
   ownerId String? @db.ObjectId
-  owner   User?   @relation(fields: [ownerId], references: [id])
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
 
   workouts WorkoutExercise[]
 
@@ -93,25 +92,37 @@ model WorkoutExercise {
   id         String @id @default(auto()) @map("_id") @db.ObjectId
   workoutId  String @db.ObjectId
   exerciseId String @db.ObjectId
-  order      Int
 
-  workout  Workout      @relation(fields: [workoutId], references: [id])
-  exercise Exercise     @relation(fields: [exerciseId], references: [id])
-  sets     WorkoutSet[]
+  // Position within this workout.
+  order Int
+
+  // Deleting a workout removes its exercise occurrences.
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  // A referenced catalog exercise cannot be deleted.
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  sets WorkoutSet[]
 
   @@index([workoutId, order])
   @@index([exerciseId])
 }
 
 model WorkoutSet {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
-  workoutExerciseId String  @db.ObjectId
+  id                String @id @default(auto()) @map("_id") @db.ObjectId
+  workoutExerciseId String @db.ObjectId
   setNumber         Int
   reps              Int
-  weight            Float?
-  completed         Boolean @default(false)
 
-  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id])
+  // Kilograms internally; displayed as pounds.
+  // null = not recorded; 0 = zero external load.
+  // Preserve the existing MongoDB field name.
+  weightKg Float? @map("weight")
+
+  completed Boolean @default(false)
+
+  // Removing a workout exercise removes its sets.
+  workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 
   @@index([workoutExerciseId, setNumber])
 }
