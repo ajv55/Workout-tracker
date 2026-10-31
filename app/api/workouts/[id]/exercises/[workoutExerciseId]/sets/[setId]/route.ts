@@ -86,11 +86,24 @@ export async function PATCH(
           weightKg: true,
           completed: true,
           plannedRestSeconds: true,
+          restStartedAt: true,
         },
       });
 
       if (!existing) {
         return { status: "not-found" } as const;
+      }
+
+      if (existing.restStartedAt !== null) {
+        const changesRestDuration =
+          patch.data.plannedRestSeconds !== undefined &&
+          patch.data.plannedRestSeconds !== existing.plannedRestSeconds;
+
+        const marksIncomplete = patch.data.completed === false;
+
+        if (changesRestDuration || marksIncomplete) {
+          return { status: "rest-locked" } as const;
+        }
       }
 
       const merged = workoutSetStateSchema.safeParse({
@@ -133,6 +146,17 @@ export async function PATCH(
       return NextResponse.json(
         { message: "Workout set not found" },
         { status: 404, headers: responseHeaders },
+      );
+    }
+
+    if (outcome.status === "rest-locked") {
+      return NextResponse.json(
+        {
+          message:
+            "After rest starts, its planned duration and the set’s completed status are locked.",
+          reason: "rest-already-started",
+        },
+        { status: 409, headers: responseHeaders },
       );
     }
 
