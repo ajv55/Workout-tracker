@@ -9,14 +9,14 @@ type RouteContext = {
 
 export async function GET(
   _request: Request,
-  { params }: RouteContext
+  { params }: RouteContext,
 ) {
   const session = await auth();
 
   if (!session?.user?.id) {
     return NextResponse.json(
       { message: "Unauthorized" },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -25,7 +25,7 @@ export async function GET(
   if (!/^[a-f\d]{24}$/i.test(id)) {
     return NextResponse.json(
       { message: "Workout not found" },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
@@ -36,43 +36,80 @@ export async function GET(
         userId: session.user.id,
       },
       include: {
-        exercises: true,
+        exercises: {
+          orderBy: [
+            { order: "asc" },
+            { id: "asc" },
+          ],
+          select: {
+            id: true,
+            exerciseId: true,
+            order: true,
+            exercise: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+              },
+            },
+            sets: {
+              orderBy: [
+                { setNumber: "asc" },
+                { id: "asc" },
+              ],
+              select: {
+                id: true,
+                workoutExerciseId: true,
+                setNumber: true,
+                reps: true,
+                weightKg: true,
+                completed: true,
+                plannedRestSeconds: true,
+                restStartedAt: true,
+                restEndedAt: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!workout) {
       return NextResponse.json(
         { message: "Workout not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     return NextResponse.json(
       { workout },
-      { status: 200 }
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "private, no-store",
+        },
+      },
     );
   } catch (error: unknown) {
     console.error("Failed to fetch workout:", error);
 
     return NextResponse.json(
       { message: "Unable to fetch workout" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-
-
 export async function PATCH(
   request: Request,
-  { params }: RouteContext
+  { params }: RouteContext,
 ) {
   const session = await auth();
 
   if (!session?.user?.id) {
     return NextResponse.json(
       { message: "Unauthorized" },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -81,7 +118,7 @@ export async function PATCH(
   if (!/^[a-f\d]{24}$/i.test(id)) {
     return NextResponse.json(
       { message: "Workout not found" },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
@@ -92,7 +129,7 @@ export async function PATCH(
   } catch {
     return NextResponse.json(
       { message: "Invalid JSON body" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -104,7 +141,7 @@ export async function PATCH(
         message: "Invalid workout data",
         errors: result.error.flatten().fieldErrors,
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -114,22 +151,18 @@ export async function PATCH(
         id,
         userId: session.user.id,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!existingWorkout) {
       return NextResponse.json(
         { message: "Workout not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     const workout = await prisma.workout.update({
-      where: {
-        id: existingWorkout.id,
-      },
+      where: { id: existingWorkout.id },
       data: result.data,
     });
 
@@ -138,30 +171,28 @@ export async function PATCH(
         message: "Workout updated successfully",
         workout,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error: unknown) {
     console.error("Failed to update workout:", error);
 
     return NextResponse.json(
       { message: "Unable to update workout" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
-
-
 export async function DELETE(
   _request: Request,
-  { params }: RouteContext
+  { params }: RouteContext,
 ) {
   const session = await auth();
 
   if (!session?.user?.id) {
     return NextResponse.json(
       { message: "Unauthorized" },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -170,7 +201,7 @@ export async function DELETE(
   if (!/^[a-f\d]{24}$/i.test(id)) {
     return NextResponse.json(
       { message: "Workout not found" },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
@@ -180,34 +211,30 @@ export async function DELETE(
         id,
         userId: session.user.id,
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (!existingWorkout) {
       return NextResponse.json(
         { message: "Workout not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     await prisma.workout.delete({
-      where: {
-        id: existingWorkout.id,
-      },
+      where: { id: existingWorkout.id },
     });
 
     return NextResponse.json(
       { message: "Workout deleted successfully" },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error: unknown) {
     console.error("Failed to delete workout:", error);
 
     return NextResponse.json(
       { message: "Unable to delete workout" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

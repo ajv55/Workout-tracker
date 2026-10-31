@@ -96,14 +96,13 @@ model WorkoutExercise {
   // Position within this workout.
   order Int
 
-  // Deleting a workout removes its exercise occurrences.
-  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-
-  // A referenced catalog exercise cannot be deleted.
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
 
   sets WorkoutSet[]
 
+  // An exercise can appear only once in a given workout.
+  @@unique([workoutId, exerciseId])
   @@index([workoutId, order])
   @@index([exerciseId])
 }
@@ -112,19 +111,26 @@ model WorkoutSet {
   id                String @id @default(auto()) @map("_id") @db.ObjectId
   workoutExerciseId String @db.ObjectId
   setNumber         Int
-  reps              Int
 
-  // Kilograms internally; displayed as pounds.
-  // null = not recorded; 0 = zero external load.
-  // Preserve the existing MongoDB field name.
+  // null means reps have not been recorded.
+  reps Int?
+
+  // Stored in kilograms; displayed in pounds.
+  // null = unrecorded; 0 = zero external load.
   weightKg Float? @map("weight")
 
   completed Boolean @default(false)
 
-  // Removing a workout exercise removes its sets.
+  // Requested countdown duration, in seconds.
+  plannedRestSeconds Int?
+
+  // Actual rest interval after this set.
+  restStartedAt DateTime?
+  restEndedAt   DateTime?
+
   workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
 
-  @@index([workoutExerciseId, setNumber])
+  @@unique([workoutExerciseId, setNumber])
 }
 
 model Account {

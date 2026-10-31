@@ -3,6 +3,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import AddWorkoutExercise, {
+  type AddedWorkoutExercise,
+} from "@/app/components/AddWorkoutExercise";
+import RemoveWorkoutExercise from "@/app/components/RemoveWorkoutExercise";
+import WorkoutSets, {
+  type WorkoutSetRecord,
+} from "@/app/components/WorkoutSets";
+
+type WorkoutExercise = AddedWorkoutExercise & {
+  sets: WorkoutSetRecord[];
+};
 
 type Workout = {
   id: string;
@@ -10,10 +21,17 @@ type Workout = {
   date: string;
   durationMinutes: number | null;
   notes: string | null;
+  exercises: WorkoutExercise[];
 };
 
 type WorkoutResponse = {
-  workout: Workout;
+  workout: Omit<Workout, "exercises"> & {
+    exercises: Array<
+      AddedWorkoutExercise & {
+        sets?: WorkoutSetRecord[] | null;
+      }
+    >;
+  };
 };
 
 type LoadState =
@@ -28,21 +46,33 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
+function sortExercises(exercises: WorkoutExercise[]) {
+  return [...exercises].sort(
+    (first, second) =>
+      first.order - second.order ||
+      first.id.localeCompare(second.id),
+  );
+}
+
 export default function WorkoutDetails({
   workoutId,
 }: {
   workoutId: string;
 }) {
   const router = useRouter();
-  const deletingRef = useRef(false);
+
+  const operationLocked = useRef(false);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
+  const exercisesHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const [state, setState] = useState<LoadState>({
     status: "loading",
   });
+  const [operationBusy, setOperationBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [exerciseMessage, setExerciseMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -51,6 +81,7 @@ export default function WorkoutDetails({
       setState({ status: "loading" });
       setConfirmingDelete(false);
       setDeleteError(null);
+      setExerciseMessage("");
 
       try {
         const response = await fetch(
@@ -70,10 +101,18 @@ export default function WorkoutDetails({
 
         const data: WorkoutResponse = await response.json();
 
+        const exercises = data.workout.exercises.map((exercise) => ({
+          ...exercise,
+          sets: exercise.sets ?? [],
+        }));
+
         if (active) {
           setState({
             status: "success",
-            workout: data.workout,
+            workout: {
+              ...data.workout,
+              exercises: sortExercises(exercises),
+            },
           });
         }
       } catch (error: unknown) {
@@ -96,17 +135,104 @@ export default function WorkoutDetails({
     };
   }, [workoutId]);
 
+  function tryStartOperation() {
+    if (operationLocked.current) return false;
+
+    operationLocked.current = true;
+    setOperationBusy(true);
+    return true;
+  }
+
+  function finishOperation() {
+    operationLocked.current = false;
+    setOperationBusy(false);
+  }
+
+  function handleExerciseAdded(added: AddedWorkoutExercise) {
+    setState((current) => {
+      if (
+        current.status !== "success" ||
+        current.workout.id !== workoutId ||
+        current.workout.exercises.some((item) => item.id === added.id)
+      ) {
+        return current;
+      }
+
+      return {
+        status: "success",
+        workout: {
+          ...current.workout,
+          exercises: sortExercises([
+            ...current.workout.exercises,
+            { ...added, sets: [] },
+          ]),
+        },
+      };
+    });
+
+    setExerciseMessage("");
+  }
+
+  function handleExerciseRemoved(attachmentId: string) {
+    setState((current) => {
+      if (
+        current.status !== "success" ||
+        current.workout.id !== workoutId
+      ) {
+        return current;
+      }
+
+      return {
+        status: "success",
+        workout: {
+          ...current.workout,
+          exercises: current.workout.exercises.filter(
+            (item) => item.id !== attachmentId,
+          ),
+        },
+      };
+    });
+
+    setExerciseMessage("Exercise removed from this workout.");
+    exercisesHeadingRef.current?.focus();
+  }
+
+  function handleSetsChanged(
+    attachmentId: string,
+    sets: WorkoutSetRecord[],
+  ) {
+    setState((current) => {
+      if (
+        current.status !== "success" ||
+        current.workout.id !== workoutId
+      ) {
+        return current;
+      }
+
+      return {
+        status: "success",
+        workout: {
+          ...current.workout,
+          exercises: current.workout.exercises.map((exercise) =>
+            exercise.id === attachmentId
+              ? { ...exercise, sets }
+              : exercise,
+          ),
+        },
+      };
+    });
+  }
+
   async function handleDelete() {
     if (
       !confirmingDelete ||
-      deletingRef.current ||
       state.status !== "success" ||
-      state.workout.id !== workoutId
+      state.workout.id !== workoutId ||
+      !tryStartOperation()
     ) {
       return;
     }
 
-    deletingRef.current = true;
     setDeleting(true);
     setDeleteError(null);
 
@@ -134,8 +260,8 @@ export default function WorkoutDetails({
           ? error.message
           : "Unable to delete this workout.",
       );
-      deletingRef.current = false;
       setDeleting(false);
+      finishOperation();
     }
   }
 
@@ -158,6 +284,8 @@ export default function WorkoutDetails({
   const { workout } = state;
 
   if (workout.id !== workoutId) return null;
+
+  const exerciseControlsDisabled = operationBusy || confirmingDelete;
 
   return (
     <article className="rounded-2xl border border-app-border bg-app-surface p-6">
@@ -189,14 +317,101 @@ export default function WorkoutDetails({
         <div>
           <dt className="text-sm text-text-muted">Notes</dt>
           <dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">
-            {workout.notes?.trim() ? workout.notes : "No notes recorded."}
+            {workout.notes?.trim()
+              ? workout.notes
+              : "No notes recorded."}
           </dd>
         </div>
       </dl>
 
+      <section
+        aria-labelledby="workout-exercises-heading"
+        className="mt-8 border-t border-app-border pt-6"
+      >
+        <h3
+          ref={exercisesHeadingRef}
+          id="workout-exercises-heading"
+          tabIndex={-1}
+          className="text-lg font-semibold"
+        >
+          Exercises
+        </h3>
+
+        <p role="status" className="mt-2 text-sm text-text-muted">
+          {exerciseMessage}
+        </p>
+
+        {workout.exercises.length === 0 ? (
+          <p className="mt-3 text-sm text-text-muted">
+            No exercises added to this workout yet.
+          </p>
+        ) : (
+          <ol className="mt-4 space-y-3">
+            {workout.exercises.map((item, index) => (
+              <li
+                key={item.id}
+                className="flex items-start gap-3 rounded-xl border border-app-border p-4"
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-cyan/10 text-sm font-semibold text-accent-cyan"
+                >
+                  {index + 1}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <h4 className="break-words font-semibold">
+                    {item.exercise.name}
+                  </h4>
+
+                  <p className="mt-1 break-words text-sm text-text-muted">
+                    {item.exercise.category}
+                  </p>
+
+                  <WorkoutSets
+                    workoutId={workout.id}
+                    attachmentId={item.id}
+                    exerciseName={item.exercise.name}
+                    sets={item.sets}
+                    disabled={exerciseControlsDisabled}
+                    tryStartOperation={tryStartOperation}
+                    finishOperation={finishOperation}
+                    onSetsChanged={(sets) =>
+                      handleSetsChanged(item.id, sets)
+                    }
+                  />
+
+                  <RemoveWorkoutExercise
+                    workoutId={workout.id}
+                    attachmentId={item.id}
+                    exerciseName={item.exercise.name}
+                    disabled={exerciseControlsDisabled}
+                    tryStartOperation={tryStartOperation}
+                    finishOperation={finishOperation}
+                    onRemoved={handleExerciseRemoved}
+                  />
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+
+        <AddWorkoutExercise
+          key={workout.id}
+          workoutId={workout.id}
+          attachedExerciseIds={workout.exercises.map(
+            (item) => item.exerciseId,
+          )}
+          disabled={exerciseControlsDisabled}
+          tryStartOperation={tryStartOperation}
+          finishOperation={finishOperation}
+          onAdded={handleExerciseAdded}
+        />
+      </section>
+
       <div className="mt-8 border-t border-app-border pt-6">
         <div className="flex flex-wrap items-center gap-4">
-          {!deleting && (
+          {!operationBusy && !confirmingDelete && (
             <Link
               href={`/workouts/${workout.id}/edit`}
               className="rounded-lg bg-accent-cyan px-4 py-2 text-sm font-semibold text-slate-950"
@@ -208,10 +423,11 @@ export default function WorkoutDetails({
           <button
             ref={deleteButtonRef}
             type="button"
-            disabled={deleting}
+            disabled={operationBusy}
             aria-expanded={confirmingDelete}
             aria-controls="delete-confirmation"
             onClick={() => {
+              if (operationLocked.current) return;
               setConfirmingDelete(true);
               setDeleteError(null);
             }}
@@ -237,14 +453,15 @@ export default function WorkoutDetails({
               </h3>
 
               <p className="mt-2 break-words text-sm text-text-muted">
-                “{workout.title}” will be permanently deleted.
-                This cannot be undone.
+                “{workout.title}” and its recorded exercises and sets
+                will be permanently deleted. Catalog exercises will
+                remain. This cannot be undone.
               </p>
 
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
-                  disabled={deleting}
+                  disabled={operationBusy}
                   onClick={() => {
                     setConfirmingDelete(false);
                     setDeleteError(null);
@@ -257,7 +474,7 @@ export default function WorkoutDetails({
 
                 <button
                   type="button"
-                  disabled={deleting}
+                  disabled={operationBusy}
                   onClick={() => void handleDelete()}
                   className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
