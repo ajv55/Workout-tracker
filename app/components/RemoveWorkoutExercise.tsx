@@ -7,6 +7,7 @@ type Props = {
   attachmentId: string;
   exerciseName: string;
   disabled?: boolean;
+  unsavedSetCount?: number;
   tryStartOperation: () => boolean;
   finishOperation: () => void;
   onRemoved: (attachmentId: string) => void;
@@ -17,6 +18,7 @@ export default function RemoveWorkoutExercise({
   attachmentId,
   exerciseName,
   disabled = false,
+  unsavedSetCount = 0,
   tryStartOperation,
   finishOperation,
   onRemoved,
@@ -100,6 +102,14 @@ export default function RemoveWorkoutExercise({
             workout? The catalog exercise will remain available.
           </p>
 
+          {unsavedSetCount > 0 && (
+            <p className="mt-2 text-sm font-medium text-amber-300">
+              {unsavedSetCount} {unsavedSetCount === 1 ? "set has" : "sets have"} unsaved edits.
+              Confirming removal will discard these edits and permanently delete
+              this exercise’s recorded sets. Choose Keep exercise to continue editing.
+            </p>
+          )}
+
           <div className="mt-3 flex flex-wrap gap-3">
             <button
               type="button"
@@ -120,7 +130,8 @@ export default function RemoveWorkoutExercise({
               onClick={() => void handleRemove()}
               className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {removing ? "Removing..." : "Confirm removal"}
+              {removing ? "Removing..." : unsavedSetCount > 0
+                ? "Remove exercise and discard edits" : "Confirm removal"}
             </button>
           </div>
         </div>

@@ -32,6 +32,7 @@ type Props = OperationProps & {
   exerciseName: string;
   sets: WorkoutSetRecord[];
   onSetsChanged: (sets: WorkoutSetRecord[]) => void;
+  onDirtyChange: (setId: string, dirty: boolean) => void;
 };
 
 type SetRowProps = OperationProps & {
@@ -40,6 +41,7 @@ type SetRowProps = OperationProps & {
   set: WorkoutSetRecord;
   onSaved: (set: WorkoutSetRecord) => void;
   onRemoved: (setId: string) => void;
+  onDirtyChange: (setId: string, dirty: boolean) => void;
 };
 
 const KG_PER_POUND = 0.45359237;
@@ -158,6 +160,7 @@ function SetRow({
   finishOperation,
   onSaved,
   onRemoved,
+  onDirtyChange,
 }: SetRowProps) {
   const prefix = useId();
   const submitting = useRef(false);
@@ -347,6 +350,15 @@ function SetRow({
     (key) => form[key] !== originalForm[key],
   );
 
+  useEffect(() => {
+    onDirtyChange(set.id, dirty);
+  }, [set.id, dirty, onDirtyChange]);
+
+  // Remove this row from the registry when its set or attachment unmounts.
+  useEffect(() => {
+    return () => onDirtyChange(set.id, false);
+  }, [set.id, onDirtyChange]);
+
   async function actOnRest(action: "START_REST" | "END_REST") {
     if (disabled || submitting.current || confirmingRemoval || dirty || expired) return;
     if (!tryStartOperation()) return;
@@ -399,7 +411,7 @@ function SetRow({
       <form onSubmit={save} aria-label={`Edit set ${set.setNumber}`}>
         <fieldset disabled={busy || confirmingRemoval}>
           <legend className="px-1 text-sm font-semibold">
-            Set {set.setNumber}
+            Set {set.setNumber}{dirty ? " — Unsaved changes" : ""}
           </legend>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -641,6 +653,7 @@ export default function WorkoutSets({
   tryStartOperation,
   finishOperation,
   onSetsChanged,
+  onDirtyChange,
 }: Props) {
   const prefix = useId();
   const submitting = useRef(false);
@@ -769,6 +782,7 @@ export default function WorkoutSets({
             )
           }
           onRemoved={handleRemoved}
+          onDirtyChange={onDirtyChange}
         />
       ))}
 

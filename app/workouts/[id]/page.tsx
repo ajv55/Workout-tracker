@@ -1,5 +1,8 @@
 import { Suspense } from "react";
-import Link from "next/link";
+import {
+  GuardedWorkoutLink,
+  UnsavedWorkoutNavigationProvider,
+} from "@/app/components/UnsavedWorkoutNavigation";
 import WorkoutDetails from "@/app/components/WorkoutDetails";
 
 type PageProps = {
@@ -14,13 +17,14 @@ async function WorkoutDetailsContent({ params }: PageProps) {
 
 export default function WorkoutDetailsPage({ params }: PageProps) {
   return (
+    <UnsavedWorkoutNavigationProvider>
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <Link
+      <GuardedWorkoutLink
         href="/workouts"
         className="text-sm text-accent-cyan hover:underline"
       >
         ← Workout history
-      </Link>
+      </GuardedWorkoutLink>
 
       <header className="mb-8 mt-6">
         <h1 className="text-3xl font-bold">Workout details</h1>
@@ -36,5 +40,6 @@ export default function WorkoutDetailsPage({ params }: PageProps) {
         <WorkoutDetailsContent params={params} />
       </Suspense>
     </main>
+    </UnsavedWorkoutNavigationProvider>
   );
 }

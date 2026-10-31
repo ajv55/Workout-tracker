@@ -1,8 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import {
+  GuardedWorkoutLink,
+  useUnsavedWorkoutNavigation,
+} from "@/app/components/UnsavedWorkoutNavigation";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AddWorkoutExercise, {
   type AddedWorkoutExercise,
 } from "@/app/components/AddWorkoutExercise";
@@ -60,6 +63,7 @@ export default function WorkoutDetails({
   workoutId: string;
 }) {
   const router = useRouter();
+  const { setBlocked } = useUnsavedWorkoutNavigation();
 
   const operationLocked = useRef(false);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -68,6 +72,39 @@ export default function WorkoutDetails({
   const [state, setState] = useState<LoadState>({
     status: "loading",
   });
+  const [dirtySetKeys, setDirtySetKeys] = useState<Set<string>>(() => new Set());
+  const dirtySetCount = [...dirtySetKeys].filter(
+    (key) => key.startsWith(`${workoutId}:`),
+  ).length;
+  const hasUnsavedSets = dirtySetCount > 0;
+
+  useEffect(() => {
+    setBlocked(hasUnsavedSets);
+    return () => setBlocked(false);
+  }, [hasUnsavedSets, setBlocked]);
+
+  const handleSetDirtyChange = useCallback((setId: string, dirty: boolean) => {
+    const key = `${workoutId}:${setId}`;
+    setDirtySetKeys((current) => {
+      if (current.has(key) === dirty) return current;
+      const next = new Set(current);
+      if (dirty) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, [workoutId]);
+
+  useEffect(() => {
+    if (!hasUnsavedSets) return;
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      // Browser-controlled wording; returnValue supports older implementations.
+      event.returnValue = true;
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [hasUnsavedSets]);
+
   const [operationBusy, setOperationBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -293,6 +330,13 @@ export default function WorkoutDetails({
         {workout.title}
       </h2>
 
+      {hasUnsavedSets && (
+        <p role="status" className="mt-4 rounded-lg border border-amber-400/30 p-3 text-sm text-amber-300">
+          {dirtySetCount} {dirtySetCount === 1 ? "set has" : "sets have"} unsaved changes.
+          Save or reset each edited row before leaving.
+        </p>
+      )}
+
       <dl className="mt-6 space-y-5">
         <div>
           <dt className="text-sm text-text-muted">
@@ -373,6 +417,7 @@ export default function WorkoutDetails({
                     attachmentId={item.id}
                     exerciseName={item.exercise.name}
                     sets={item.sets}
+                    onDirtyChange={handleSetDirtyChange}
                     disabled={exerciseControlsDisabled}
                     tryStartOperation={tryStartOperation}
                     finishOperation={finishOperation}
@@ -382,6 +427,9 @@ export default function WorkoutDetails({
                   />
 
                   <RemoveWorkoutExercise
+                    unsavedSetCount={item.sets.filter((set) =>
+                      dirtySetKeys.has(`${workoutId}:${set.id}`),
+                    ).length}
                     workoutId={workout.id}
                     attachmentId={item.id}
                     exerciseName={item.exercise.name}
@@ -412,12 +460,12 @@ export default function WorkoutDetails({
       <div className="mt-8 border-t border-app-border pt-6">
         <div className="flex flex-wrap items-center gap-4">
           {!operationBusy && !confirmingDelete && (
-            <Link
+            <GuardedWorkoutLink
               href={`/workouts/${workout.id}/edit`}
               className="rounded-lg bg-accent-cyan px-4 py-2 text-sm font-semibold text-slate-950"
             >
               Edit workout
-            </Link>
+            </GuardedWorkoutLink>
           )}
 
           <button
@@ -458,6 +506,14 @@ export default function WorkoutDetails({
                 remain. This cannot be undone.
               </p>
 
+              {hasUnsavedSets && (
+                <p className="mt-3 text-sm font-medium text-amber-300">
+                  {dirtySetCount} {dirtySetCount === 1 ? "set has" : "sets have"} unsaved edits.
+                  Deleting this workout will discard these edits along with all
+                  saved exercises and sets. Choose Keep workout to continue editing.
+                </p>
+              )}
+
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
@@ -478,7 +534,8 @@ export default function WorkoutDetails({
                   onClick={() => void handleDelete()}
                   className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  {deleting ? "Deleting..." : "Permanently delete"}
+                  {deleting ? "Deleting..." : hasUnsavedSets
+                    ? "Delete workout and discard edits" : "Permanently delete"}
                 </button>
               </div>
             </div>
