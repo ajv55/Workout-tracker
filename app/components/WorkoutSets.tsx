@@ -1,10 +1,12 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   createWorkoutSetsSchema,
   updateWorkoutSetSchema,
 } from "@/app/lib/validations/workout-set";
+
+import { getRestExpirationMs } from "@/app/lib/workout-rest";
 
 export type WorkoutSetRecord = {
   id: string;
@@ -89,6 +91,64 @@ async function responseError(response: Response): Promise<string> {
   return "The request failed. Refresh to check the saved workout before retrying.";
 }
 
+type ClockAnchor = { serverMs: number; receivedAt: number };
+
+function formatRest(seconds: number) {
+  const whole = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+function RestDisplay({ set, now }: {
+  set: WorkoutSetRecord;
+  now: number | null;
+}) {
+  const active = set.restStartedAt !== null && set.restEndedAt === null;
+  const expiresAt = set.restStartedAt === null ? null :
+    getRestExpirationMs(Date.parse(set.restStartedAt), set.plannedRestSeconds);
+  if (active && expiresAt !== null && now !== null && now >= expiresAt) {
+    return <p role="status" className="text-sm text-text-muted">
+      Rest tracking expired. Timer wasn’t stopped; actual rest is unknown.
+    </p>;
+  }
+
+  if (set.restStartedAt === null) {
+    return <p className="text-sm text-text-muted">Rest has not started.</p>;
+  }
+
+  const start = Date.parse(set.restStartedAt);
+  const end = set.restEndedAt === null ? now : Date.parse(set.restEndedAt);
+  if (end === null) {
+    return <p className="text-sm text-text-muted">Loading rest timer...</p>;
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return <p role="alert">Unable to display saved rest time. Refresh the page.</p>;
+  }
+  const elapsed = Math.max(0, Math.floor((end - start) / 1000));
+  const planned = set.plannedRestSeconds;
+  const remaining = planned === null ? null : Math.max(0, planned - elapsed);
+  const overtime = planned === null ? 0 : Math.max(0, elapsed - planned);
+
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-semibold text-accent-cyan">
+        {set.restEndedAt !== null
+          ? `Actual rest: ${formatRest(elapsed)}`
+          : remaining === null
+            ? `Rest elapsed: ${formatRest(elapsed)}`
+            : overtime > 0
+              ? `Over planned rest: +${formatRest(overtime)}`
+              : `Rest remaining: ${formatRest(remaining)}`}
+      </p>
+      {active && (
+        <p className="text-xs text-text-muted">
+          Elapsed: {formatRest(elapsed)}. End rest when you are ready;
+          reaching zero does not end it automatically.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SetRow({
   workoutId,
   attachmentId,
@@ -104,11 +164,36 @@ function SetRow({
   const removeButtonRef = useRef<HTMLButtonElement>(null);
 
   const [form, setForm] = useState(() => toForm(set));
+  const [restAction, setRestAction] = useState<"START_REST" | "END_REST" | null>(null);
+  const [clockAnchor, setClockAnchor] = useState<ClockAnchor | null>(null);
+  const [now, setNow] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+
+  const expiresAt = set.restStartedAt === null ? null :
+    getRestExpirationMs(Date.parse(set.restStartedAt), set.plannedRestSeconds);
+  const expired = expiresAt !== null && now !== null && now >= expiresAt &&
+    set.restEndedAt === null;
+  const running = set.restStartedAt !== null && set.restEndedAt === null && !expired;
+
+  useEffect(() => {
+    if (!running) return;
+    function tick() {
+      setNow(clockAnchor
+        ? clockAnchor.serverMs + performance.now() - clockAnchor.receivedAt
+        : Date.now());
+    }
+    const interval = window.setInterval(tick, 250);
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [running, clockAnchor]);
 
   const setUrl =
     `/api/workouts/${encodeURIComponent(workoutId)}` +
@@ -256,11 +341,59 @@ function SetRow({
     }
   }
 
-  const busy = disabled || saving || removing;
+  const restLocked = set.restStartedAt !== null;
+  const originalForm = toForm(set);
+  const dirty = (Object.keys(form) as Array<keyof typeof form>).some(
+    (key) => form[key] !== originalForm[key],
+  );
+
+  async function actOnRest(action: "START_REST" | "END_REST") {
+    if (disabled || submitting.current || confirmingRemoval || dirty || expired) return;
+    if (!tryStartOperation()) return;
+    submitting.current = true;
+    setRestAction(action);
+    setError(null);
+    setMessage("");
+    try {
+      const response = await fetch(`${setUrl}/rest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const serverMs = Date.parse(body?.serverNow ?? "");
+        if (Number.isFinite(serverMs)) {
+          setClockAnchor({ serverMs, receivedAt: performance.now() });
+          setNow(serverMs);
+        }
+        throw new Error(typeof body?.message === "string"
+          ? body.message : "Unable to update rest. Refresh before retrying.");
+      }
+      const result: { set: WorkoutSetRecord; serverNow: string } =
+        await response.json();
+      const serverMs = Date.parse(result.serverNow);
+      setClockAnchor(Number.isFinite(serverMs)
+        ? { serverMs, receivedAt: performance.now() }
+        : null);
+      if (Number.isFinite(serverMs)) setNow(serverMs);
+      onSaved(result.set);
+      setForm(toForm(result.set));
+      setMessage(action === "START_REST" ? "Rest started." : "Rest ended.");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Unable to update rest.");
+    } finally {
+      submitting.current = false;
+      setRestAction(null);
+      finishOperation();
+    }
+  }
+
+  const busy = disabled || saving || removing || restAction !== null;
 
   return (
     <div
-      aria-busy={saving || removing}
+      aria-busy={saving || removing || restAction !== null}
       className="rounded-xl border border-app-border p-3"
     >
       <form onSubmit={save} aria-label={`Edit set ${set.setNumber}`}>
@@ -309,6 +442,7 @@ function SetRow({
               Rest minutes
               <input
                 id={`${prefix}-minutes`}
+                disabled={restLocked}
                 type="number"
                 min="0"
                 max="60"
@@ -328,6 +462,7 @@ function SetRow({
               Rest seconds
               <input
                 id={`${prefix}-seconds`}
+                disabled={restLocked}
                 type="number"
                 min="0"
                 max="59"
@@ -345,6 +480,7 @@ function SetRow({
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                disabled={restLocked}
                 checked={form.completed}
                 onChange={(event) =>
                   change("completed", event.target.checked)
@@ -376,6 +512,53 @@ function SetRow({
           </div>
         </fieldset>
       </form>
+
+      <div className="mt-4 space-y-3 rounded-lg bg-app-surface p-3">
+        <RestDisplay set={set} now={now} />
+        {restLocked && (
+          <p className="text-xs text-text-muted">
+            Rest plan and completion are locked after rest starts.
+            Reps and weight can still be corrected and saved.
+          </p>
+        )}
+        {dirty && set.restEndedAt === null && (
+          <p className="text-xs text-text-muted">
+            Save or reset your edits before using the rest controls.
+          </p>
+        )}
+        {set.restStartedAt === null ? (
+          <>
+            <button
+              type="button"
+              disabled={busy || confirmingRemoval || dirty || !set.completed ||
+                set.reps === null || set.plannedRestSeconds === null}
+              onClick={() => void actOnRest("START_REST")}
+              className="rounded-lg border border-app-border px-3 py-2 text-sm text-accent-cyan disabled:opacity-50"
+            >
+              {restAction === "START_REST" ? "Starting..." : "Start rest"}
+            </button>
+            {(!set.completed || set.plannedRestSeconds === null) && (
+              <p className="text-xs text-text-muted">
+                Save a completed set with reps and a rest plan to start rest.
+              </p>
+            )}
+          </>
+        ) : set.restEndedAt === null && !expired ? (
+          <button
+            type="button"
+            disabled={busy || confirmingRemoval || dirty}
+            onClick={() => void actOnRest("END_REST")}
+            className="rounded-lg bg-accent-cyan px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50"
+          >
+            {restAction === "END_REST" ? "Ending..." : "End rest"}
+          </button>
+        ) : (
+          <p className="text-xs text-text-muted">
+            {expired ? "Expired intervals cannot be ended or restarted." :
+              "Rest finished. This interval cannot be restarted."}
+          </p>
+        )}
+      </div>
 
       <button
         ref={removeButtonRef}
