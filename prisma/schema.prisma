@@ -119,6 +119,9 @@ model WorkoutSet {
   // null = unrecorded; 0 = zero external load.
   weightKg Float? @map("weight")
 
+  // Incremented atomically on set edits and rest transitions.
+  version Int @default(0)
+
   completed Boolean @default(false)
 
   // Requested countdown duration, in seconds.

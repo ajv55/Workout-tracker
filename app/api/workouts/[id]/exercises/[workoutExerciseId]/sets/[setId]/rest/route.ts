@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
 import { transitionWorkoutRest } from "@/app/lib/workout-rest";
-import { workoutSetRestActionSchema } from "@/app/lib/validations/workout-set";
+import { workoutSetRestRequestSchema } from "@/app/lib/validations/workout-set";
 
 type RouteContext = {
   params: Promise<{
@@ -54,7 +54,7 @@ export async function POST(
       );
     }
 
-    const action = workoutSetRestActionSchema.safeParse(body);
+    const action = workoutSetRestRequestSchema.safeParse(body);
 
     if (!action.success) {
       return NextResponse.json(
@@ -111,15 +111,23 @@ export async function POST(
         } as const;
       }
 
-      const set = await tx.workoutSet.update({
-        where: {
-          id: existing.id,
-        },
+      if (existing.version !== action.data.expectedVersion) {
+        return { status: "conflict", currentSet: existing } as const;
+      }
+      const updated = await tx.workoutSet.updateMany({
+        where: { id: existing.id, version: action.data.expectedVersion },
         data: {
           restStartedAt: transition.restStartedAt,
           restEndedAt: transition.restEndedAt,
+          version: { increment: 1 },
         },
       });
+      if (updated.count !== 1) {
+        return { status: "conflict", currentSet: await tx.workoutSet.findUniqueOrThrow({
+          where: { id: existing.id },
+        }) } as const;
+      }
+      const set = await tx.workoutSet.findUniqueOrThrow({ where: { id: existing.id } });
 
       return {
         status: "success",
@@ -133,6 +141,15 @@ export async function POST(
         { message: "Workout set not found" },
         { status: 404, headers: responseHeaders },
       );
+    }
+
+    if (outcome.status === "conflict") {
+      return NextResponse.json({
+        message: "This set changed in another tab. Review its latest saved values.",
+        reason: "version-conflict",
+        currentSet: outcome.currentSet,
+        serverNow: new Date().toISOString(),
+      }, { status: 409, headers: responseHeaders });
     }
 
     if (outcome.status === "rejected") {

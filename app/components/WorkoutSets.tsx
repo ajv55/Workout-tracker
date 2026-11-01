@@ -12,6 +12,7 @@ export type WorkoutSetRecord = {
   id: string;
   workoutExerciseId: string;
   setNumber: number;
+  version: number;
   reps: number | null;
   weightKg: number | null;
   completed: boolean;
@@ -166,6 +167,7 @@ function SetRow({
   const submitting = useRef(false);
   const removeButtonRef = useRef<HTMLButtonElement>(null);
 
+  const [conflict, setConflict] = useState<WorkoutSetRecord | null>(null);
   const [form, setForm] = useState(() => toForm(set));
   const [restAction, setRestAction] = useState<"START_REST" | "END_REST" | null>(null);
   const [clockAnchor, setClockAnchor] = useState<ClockAnchor | null>(null);
@@ -283,9 +285,15 @@ function SetRow({
       const response = await fetch(setUrl, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ expectedVersion: set.version, changes: payload }),
       });
 
+      if (response.status === 409) {
+        const body: { message?: string; reason?: string; currentSet?: WorkoutSetRecord } =
+          await response.json();
+        if (body.reason === "version-conflict" && body.currentSet) setConflict(body.currentSet);
+        throw new Error(body.message ?? "The set changed. Your edits are still here.");
+      }
       if (!response.ok) {
         throw new Error(await responseError(response));
       }
@@ -294,6 +302,7 @@ function SetRow({
 
       onSaved(result.set);
       setForm(toForm(result.set));
+      setConflict(null);
       setMessage("Set saved.");
     } catch (error: unknown) {
       setError(
@@ -370,10 +379,11 @@ function SetRow({
       const response = await fetch(`${setUrl}/rest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, expectedVersion: set.version }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
+        if (body?.reason === "version-conflict" && body.currentSet) setConflict(body.currentSet);
         const serverMs = Date.parse(body?.serverNow ?? "");
         if (Number.isFinite(serverMs)) {
           setClockAnchor({ serverMs, receivedAt: performance.now() });
@@ -391,6 +401,7 @@ function SetRow({
       if (Number.isFinite(serverMs)) setNow(serverMs);
       onSaved(result.set);
       setForm(toForm(result.set));
+      setConflict(null);
       setMessage(action === "START_REST" ? "Rest started." : "Rest ended.");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Unable to update rest.");
@@ -630,6 +641,35 @@ function SetRow({
           </div>
         )}
       </div>
+
+      {conflict && (
+        <div className="mt-3 rounded-lg border border-amber-400/30 p-3 text-sm">
+          <p className="font-semibold text-amber-300">A newer saved version exists.</p>
+          <p className="mt-2 text-text-muted">
+            Your inputs above are preserved. Latest saved reps: {conflict.reps ?? "unrecorded"};
+            weight: {conflict.weightKg === null ? "unrecorded" :
+              `${Number((conflict.weightKg / KG_PER_POUND).toFixed(2))} lb`};
+            completed: {conflict.completed ? "yes" : "no"};
+            planned rest: {conflict.plannedRestSeconds === null ? "unrecorded" :
+              formatRest(conflict.plannedRestSeconds)}.
+          </p>
+          <p className="mt-2 text-text-muted">
+            Copy any edits you want to keep before loading the saved row.
+          </p>
+          <button type="button" disabled={busy || confirmingRemoval}
+            className="mt-3 text-accent-cyan disabled:opacity-50"
+            onClick={() => {
+              if (!window.confirm("Discard your local set edits and load the newer saved row?")) return;
+              onSaved(conflict);
+              setForm(toForm(conflict));
+              setConflict(null);
+              setError(null);
+              setMessage("Saved row loaded. Review it before editing again.");
+            }}>
+            Load saved row and discard my edits
+          </button>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="mt-2 text-sm text-red-400">

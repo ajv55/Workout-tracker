@@ -61,6 +61,7 @@ export async function GET(
                 id: true,
                 workoutExerciseId: true,
                 setNumber: true,
+                version: true,
                 reps: true,
                 weightKg: true,
                 completed: true,

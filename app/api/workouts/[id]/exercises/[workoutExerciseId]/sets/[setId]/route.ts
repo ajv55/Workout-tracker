@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
 import {
-  updateWorkoutSetSchema,
+  updateWorkoutSetRequestSchema,
   workoutSetStateSchema,
 } from "@/app/lib/validations/workout-set";
 
@@ -56,7 +56,7 @@ export async function PATCH(
       );
     }
 
-    const patch = updateWorkoutSetSchema.safeParse(body);
+    const patch = updateWorkoutSetRequestSchema.safeParse(body);
 
     if (!patch.success) {
       return NextResponse.json(
@@ -82,6 +82,7 @@ export async function PATCH(
         },
         select: {
           id: true,
+          version: true,
           reps: true,
           weightKg: true,
           completed: true,
@@ -94,12 +95,18 @@ export async function PATCH(
         return { status: "not-found" } as const;
       }
 
+      if (existing.version !== patch.data.expectedVersion) {
+        return { status: "conflict", currentSet: await tx.workoutSet.findUniqueOrThrow({
+          where: { id: existing.id },
+        }) } as const;
+      }
+
       if (existing.restStartedAt !== null) {
         const changesRestDuration =
-          patch.data.plannedRestSeconds !== undefined &&
-          patch.data.plannedRestSeconds !== existing.plannedRestSeconds;
+          patch.data.changes.plannedRestSeconds !== undefined &&
+          patch.data.changes.plannedRestSeconds !== existing.plannedRestSeconds;
 
-        const marksIncomplete = patch.data.completed === false;
+        const marksIncomplete = patch.data.changes.completed === false;
 
         if (changesRestDuration || marksIncomplete) {
           return { status: "rest-locked" } as const;
@@ -111,7 +118,7 @@ export async function PATCH(
         weightKg: existing.weightKg,
         completed: existing.completed,
         plannedRestSeconds: existing.plannedRestSeconds,
-        ...patch.data,
+        ...patch.data.changes,
       });
 
       if (!merged.success) {
@@ -121,23 +128,16 @@ export async function PATCH(
         } as const;
       }
 
-      const set = await tx.workoutSet.update({
-        where: {
-          id: existing.id,
-        },
-        data: merged.data,
-        select: {
-          id: true,
-          workoutExerciseId: true,
-          setNumber: true,
-          reps: true,
-          weightKg: true,
-          completed: true,
-          plannedRestSeconds: true,
-          restStartedAt: true,
-          restEndedAt: true,
-        },
+      const updated = await tx.workoutSet.updateMany({
+        where: { id: existing.id, version: patch.data.expectedVersion },
+        data: { ...merged.data, version: { increment: 1 } },
       });
+      if (updated.count !== 1) {
+        return { status: "conflict", currentSet: await tx.workoutSet.findUniqueOrThrow({
+          where: { id: existing.id },
+        }) } as const;
+      }
+      const set = await tx.workoutSet.findUniqueOrThrow({ where: { id: existing.id } });
 
       return { status: "updated", set } as const;
     });
@@ -147,6 +147,14 @@ export async function PATCH(
         { message: "Workout set not found" },
         { status: 404, headers: responseHeaders },
       );
+    }
+
+    if (outcome.status === "conflict") {
+      return NextResponse.json({
+        message: "This set changed in another tab. Your edits have not been saved.",
+        reason: "version-conflict",
+        currentSet: outcome.currentSet,
+      }, { status: 409, headers: responseHeaders });
     }
 
     if (outcome.status === "rest-locked") {

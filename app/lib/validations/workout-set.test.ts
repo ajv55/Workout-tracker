@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createWorkoutSetsSchema,
+  updateWorkoutSetRequestSchema,
+  workoutSetRestRequestSchema,
   updateWorkoutSetSchema,
   workoutSetStateSchema,
   workoutSetRestActionSchema,
@@ -264,3 +266,43 @@ for (const field of [
     );
   });
 }
+
+for (const expectedVersion of [0, 1, 2_147_483_646]) {
+  test(`accepts versioned edit ${expectedVersion}`, () => {
+    assert.deepEqual(updateWorkoutSetRequestSchema.parse({
+      expectedVersion, changes: { reps: 12 },
+    }), { expectedVersion, changes: { reps: 12 } });
+  });
+}
+for (const expectedVersion of [undefined, null, -1, 1.5, "0", NaN, Infinity, 2_147_483_647]) {
+  test(`rejects invalid request version ${String(expectedVersion)}`, () => {
+    assert.equal(updateWorkoutSetRequestSchema.safeParse({
+      expectedVersion, changes: { reps: 12 },
+    }).success, false);
+    assert.equal(workoutSetRestRequestSchema.safeParse({
+      expectedVersion, action: "START_REST",
+    }).success, false);
+  });
+}
+test("rejects a version without editable changes", () => {
+  assert.equal(updateWorkoutSetRequestSchema.safeParse({
+    expectedVersion: 0, changes: {},
+  }).success, false);
+});
+test("rejects ownership and version assignment inside changes", () => {
+  for (const field of ["userId", "version", "expectedVersion"]) {
+    assert.equal(updateWorkoutSetRequestSchema.safeParse({
+      expectedVersion: 0, changes: { reps: 12, [field]: 1 },
+    }).success, false);
+  }
+});
+test("requires a version for rest actions", () => {
+  assert.equal(workoutSetRestRequestSchema.safeParse({ action: "END_REST" }).success, false);
+  assert.deepEqual(workoutSetRestRequestSchema.parse({ action: "END_REST", expectedVersion: 2 }),
+    { action: "END_REST", expectedVersion: 2 });
+});
+test("rejects server timestamps in a versioned rest request", () => {
+  assert.equal(workoutSetRestRequestSchema.safeParse({
+    expectedVersion: 0, action: "START_REST", restStartedAt: "2026-01-01",
+  }).success, false);
+});

@@ -85,3 +85,16 @@ export type WorkoutSetState = z.infer<
 export type WorkoutSetRestActionInput = z.infer<
   typeof workoutSetRestActionSchema
 >;
+
+// The editable-field schema stays reusable. HTTP requests also require a version.
+const expectedVersionSchema = z.number().int().min(0).max(2_147_483_646);
+
+export const updateWorkoutSetRequestSchema = z.object({
+  expectedVersion: expectedVersionSchema,
+  changes: updateWorkoutSetSchema,
+}).strict();
+
+export const workoutSetRestRequestSchema = z.object({
+  expectedVersion: expectedVersionSchema,
+  action: z.enum(["START_REST", "END_REST"]),
+}).strict();
