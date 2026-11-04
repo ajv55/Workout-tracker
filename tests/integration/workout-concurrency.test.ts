@@ -68,6 +68,7 @@ class TestClient {
       .safeParse(await sessionResponse.json());
     assert.ok(session.success, "No authenticated session. Check the dedicated credentials account and server logs.");
     assert.equal(session.data.user.email.toLowerCase(), email.toLowerCase(), "Unexpected signed-in account");
+    return session.data.user.id;
   }
 }
 
@@ -80,17 +81,32 @@ function configuration() {
   const email = process.env.INTEGRATION_EMAIL?.trim();
   const password = process.env.INTEGRATION_PASSWORD;
   assert.ok(email && password, "Set INTEGRATION_EMAIL and INTEGRATION_PASSWORD in .env.integration.local");
-  return { origin: url.origin, email, password };
+  const secondEmail = process.env.INTEGRATION_SECOND_EMAIL?.trim();
+  const secondPassword = process.env.INTEGRATION_SECOND_PASSWORD;
+  assert.ok(secondEmail && secondPassword,
+    "Set INTEGRATION_SECOND_EMAIL and INTEGRATION_SECOND_PASSWORD in .env.integration.local");
+  assert.notEqual(secondEmail.toLowerCase(), email.toLowerCase(),
+    "Use two different existing credentials accounts");
+  return { origin: url.origin, email, password, secondEmail, secondPassword };
 }
 
-describe("Workout set concurrency through the real API", { concurrency: false }, () => {
+describe("Workout concurrency and access control through the real API", { concurrency: false }, () => {
   let client: TestClient;
+  let secondClient: TestClient;
+  let anonymousClient: TestClient;
   let sharedExerciseId: string;
 
   before(async () => {
     const config = configuration();
     client = new TestClient(config.origin);
-    await client.signIn(config.email, config.password);
+    secondClient = new TestClient(config.origin);
+    anonymousClient = new TestClient(config.origin);
+    const ownerId = await client.signIn(config.email, config.password);
+    const secondId = await secondClient.signIn(config.secondEmail, config.secondPassword);
+    assert.notEqual(ownerId, secondId, "Isolation requires two distinct session user IDs");
+    const anonymousSession = await anonymousClient.request("/api/auth/session");
+    assert.equal(anonymousSession.status, 200);
+    assert.equal(await anonymousSession.json(), null, "Anonymous client must not have a session");
     // Reuse the seeded catalog; never create persistent custom catalog entries.
     for (let page = 1; page <= 100; page++) {
       const response = await client.request(`/api/exercises?page=${page}&pageSize=50`);
@@ -150,7 +166,13 @@ describe("Workout set concurrency through the real API", { concurrency: false },
     const ready = z.object({ set: setSchema }).parse(await readyResponse.json()).set;
     const id = workoutId;
     return {
-      ready, setUrl,
+      ready, setUrl, workoutId, attachmentId, setsUrl,
+      async snapshot() {
+        const response = await client.request(`/api/workouts/${id}`);
+        assert.equal(response.status, 200, "Owner must still be able to read the fixture");
+        const body = z.object({ workout: z.record(z.string(), z.unknown()) }).parse(await response.json());
+        return body.workout;
+      },
       async load() {
         const response = await client.request(`/api/workouts/${id}`);
         assert.equal(response.status, 200);
@@ -241,4 +263,61 @@ describe("Workout set concurrency through the real API", { concurrency: false },
     } else assert.equal(after.restStartedAt, null);
     assert.equal(after.plannedRestSeconds, 90);
   });
+
+  async function assertAccessBlocked(
+    t: TestContext,
+    actor: TestClient,
+    expectedStatus: 401 | 404,
+  ) {
+    const f = await fixture(t);
+    const before = await f.snapshot();
+    const workoutUrl = `/api/workouts/${f.workoutId}`;
+    const attachmentUrl = `${workoutUrl}/exercises/${f.attachmentId}`;
+    const attempts: Array<{ label: string; path: string; method: string; body?: unknown }> = [
+      { label: "read workout", path: workoutUrl, method: "GET" },
+      { label: "edit workout", path: workoutUrl, method: "PATCH", body: { title: "Unauthorized change" } },
+      { label: "delete workout", path: workoutUrl, method: "DELETE" },
+      { label: "attach exercise", path: `${workoutUrl}/exercises`, method: "POST", body: { exerciseId: sharedExerciseId } },
+      { label: "remove exercise", path: attachmentUrl, method: "DELETE" },
+      { label: "create sets", path: f.setsUrl, method: "POST", body: { count: 1 } },
+      { label: "edit set", path: f.setUrl, method: "PATCH", body: {
+        expectedVersion: f.ready.version, changes: { reps: 25 },
+      } },
+      { label: "delete set", path: f.setUrl, method: "DELETE" },
+      { label: "start rest", path: `${f.setUrl}/rest`, method: "POST", body: {
+        expectedVersion: f.ready.version, action: "START_REST",
+      } },
+      { label: "end rest", path: `${f.setUrl}/rest`, method: "POST", body: {
+        expectedVersion: f.ready.version, action: "END_REST",
+      } },
+    ];
+    for (const attempt of attempts) {
+      const response = attempt.body === undefined
+        ? await actor.request(attempt.path, { method: attempt.method })
+        : await actor.json(attempt.path, attempt.method, attempt.body);
+      assert.equal(response.status, expectedStatus,
+        `${attempt.label} must return ${expectedStatus}`);
+      // Error responses must not contain workout data or a conflict snapshot.
+      z.object({ message: z.string().min(1) }).strict().parse(await response.json());
+      assert.deepEqual(await f.snapshot(), before,
+        `${attempt.label} must leave the owner's saved workout unchanged`);
+    }
+    if (expectedStatus === 404) {
+      const list = await actor.request("/api/workouts");
+      assert.equal(list.status, 200, "Account B can list its own workouts");
+      const listed = z.object({ workouts: z.array(z.object({ id: objectId })) }).parse(await list.json());
+      assert.ok(!listed.workouts.some((workout) => workout.id === f.workoutId),
+        "Account B's list must exclude A's temporary workout");
+    }
+    t.diagnostic(`Verified ${attempts.length} rejected operations and unchanged owner data`);
+  }
+
+  test("anonymous requests receive 401 without changing owner data", async (t) => {
+    await assertAccessBlocked(t, anonymousClient, 401);
+  });
+
+  test("account B receives 404 for account A records without changing them", async (t) => {
+    await assertAccessBlocked(t, secondClient, 404);
+  });
+
 });
