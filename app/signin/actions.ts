@@ -1,7 +1,7 @@
 "use server";
 
 import { AuthError } from "next-auth";
-import { signIn } from "@/auth";
+import { signIn, signOut } from "@/auth";
 
 export async function authenticate(
   _previousError: string | null,
@@ -24,6 +24,40 @@ export async function authenticate(
 
     // Next.js uses a thrown redirect after successful authentication.
     // Let the framework handle it instead of turning it into a form error.
+    throw error;
+  }
+}
+
+export async function authenticateWithProvider(
+  _previousError: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  const provider = formData.get("provider");
+  if (provider !== "google" && provider !== "github") {
+    return "Choose Google or GitHub to continue.";
+  }
+
+  try {
+    await signIn(provider, { redirectTo: "/" });
+    return null;
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return "Unable to start sign-in. Please try again.";
+    }
+    throw error;
+  }
+}
+
+export async function endSession(
+  _previousError: string | null,
+): Promise<string | null> {
+  try {
+    await signOut({ redirectTo: "/signin" });
+    return null;
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return "Unable to sign out. Please try again.";
+    }
     throw error;
   }
 }

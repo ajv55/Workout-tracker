@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import SignOutButton from "./components/SignOutButton";
 import RecentWorkouts from "@/app/components/RecentWorkouts";
 
 import { auth } from "@/auth";
@@ -350,6 +351,8 @@ return (
               </div>
 
               <div className="flex items-center gap-3">
+
+                {userId ? <SignOutButton /> : <Link href="/signin" className="text-sm font-semibold text-accent-cyan">Sign in</Link>}
 
                 <label className="hidden items-center gap-2 rounded-xl border border-app-border bg-app-surface px-3 py-2.5 md:flex">
 

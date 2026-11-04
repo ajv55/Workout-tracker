@@ -10,6 +10,10 @@ import { loginSchema } from "./app/lib/validations/auth";
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
 
+  pages: {
+    signIn: "/signin",
+  },
+
   session: {
     strategy: "jwt",
   },
