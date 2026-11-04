@@ -320,4 +320,63 @@ describe("Workout concurrency and access control through the real API", { concur
     await assertAccessBlocked(t, secondClient, 404);
   });
 
+  test("rejects mismatched workout, attachment, and set IDs even for their owner", async (t) => {
+    const first = await fixture(t);
+    const second = await fixture(t);
+    assert.notEqual(first.workoutId, second.workoutId);
+    assert.notEqual(first.attachmentId, second.attachmentId);
+    assert.notEqual(first.ready.id, second.ready.id);
+    const firstBefore = await first.snapshot();
+    const secondBefore = await second.snapshot();
+
+    const attempts: Array<{ label: string; path: string; method: string; body?: unknown }> = [];
+    // Each ID exists and belongs to the signed-in owner. Only the relationship is wrong.
+    for (const pair of [
+      { workoutId: second.workoutId, attachmentId: first.attachmentId },
+      { workoutId: first.workoutId, attachmentId: second.attachmentId },
+    ]) {
+      const attachmentUrl = `/api/workouts/${pair.workoutId}/exercises/${pair.attachmentId}`;
+      attempts.push(
+        { label: "create sets under a mismatched workout/attachment", path: `${attachmentUrl}/sets`,
+          method: "POST", body: { count: 1 } },
+        { label: "remove an attachment through the wrong workout", path: attachmentUrl,
+          method: "DELETE" },
+      );
+    }
+
+    const chains = [
+      // Correct attachment/set pair, but the wrong workout (both directions).
+      { workoutId: second.workoutId, attachmentId: first.attachmentId, set: first.ready },
+      { workoutId: first.workoutId, attachmentId: second.attachmentId, set: second.ready },
+      // Correct workout/attachment pair, but a set from the other attachment.
+      { workoutId: second.workoutId, attachmentId: second.attachmentId, set: first.ready },
+      { workoutId: first.workoutId, attachmentId: first.attachmentId, set: second.ready },
+    ];
+    for (const chain of chains) {
+      const setUrl = `/api/workouts/${chain.workoutId}/exercises/${chain.attachmentId}/sets/${chain.set.id}`;
+      attempts.push(
+        { label: "edit a set through a mismatched parent chain", path: setUrl, method: "PATCH",
+          body: { expectedVersion: chain.set.version, changes: { reps: 25 } } },
+        { label: "delete a set through a mismatched parent chain", path: setUrl, method: "DELETE" },
+        { label: "start rest through a mismatched parent chain", path: `${setUrl}/rest`, method: "POST",
+          body: { expectedVersion: chain.set.version, action: "START_REST" } },
+        { label: "end rest through a mismatched parent chain", path: `${setUrl}/rest`, method: "POST",
+          body: { expectedVersion: chain.set.version, action: "END_REST" } },
+      );
+    }
+
+    for (const attempt of attempts) {
+      const response = attempt.body === undefined
+        ? await client.request(attempt.path, { method: attempt.method })
+        : await client.json(attempt.path, attempt.method, attempt.body);
+      assert.equal(response.status, 404, `${attempt.label} must return 404: ${attempt.path}`);
+      z.object({ message: z.string().min(1) }).strict().parse(await response.json());
+      assert.deepEqual(await first.snapshot(), firstBefore,
+        `${attempt.label} must not change the first workout`);
+      assert.deepEqual(await second.snapshot(), secondBefore,
+        `${attempt.label} must not change the second workout`);
+    }
+    t.diagnostic(`Verified ${attempts.length} mismatched-parent requests returned 404 and both workouts stayed unchanged`);
+  });
+
 });
