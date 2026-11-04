@@ -31,8 +31,8 @@ export default function OAuthButtons() {
             {pending
               ? "Connecting…"
               : provider === "google"
-                ? <span className="flex justify-center gap-2.5 items-center"><FcGoogle size={27}/> Continue with Google</span>
-                : <span className="flex justify-center gap-2.5 items-center"><FaGithub size={27}/> Continue with Github</span>}
+                ? <span className="flex justify-center gap-2.5 items-center"><FcGoogle aria-hidden={true} size={27}/> Continue with Google</span>
+                : <span className="flex justify-center gap-2.5 items-center"><FaGithub aria-hidden={true} size={27}/> Continue with Github</span>}
           </button>
         ))}
         <div aria-live="polite" aria-atomic="true">
