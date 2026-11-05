@@ -1,9 +1,12 @@
+import { requirePageUser } from "@/app/lib/require-page-user";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import NewWorkoutForm from "@/app/components/NewWorkoutForm";
 
 async function WorkoutFormContent() {
+  await requirePageUser();
+
   await connection();
 
   const todayUtc = new Date().toISOString().slice(0, 10);

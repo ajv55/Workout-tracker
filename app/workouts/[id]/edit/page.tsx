@@ -1,3 +1,4 @@
+import { requirePageUser } from "@/app/lib/require-page-user";
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -8,6 +9,8 @@ type PageProps = {
 };
 
 async function EditWorkoutContent({ params }: PageProps) {
+  await requirePageUser();
+
   const { id } = await params;
 
   await connection();

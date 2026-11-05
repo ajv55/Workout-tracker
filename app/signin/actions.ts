@@ -51,6 +51,7 @@ export async function authenticateWithProvider(
 export async function endSession(
   _previousError: string | null,
 ): Promise<string | null> {
+    void _previousError
   try {
     await signOut({ redirectTo: "/signin" });
     return null;

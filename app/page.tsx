@@ -4,6 +4,7 @@ import SignOutButton from "./components/SignOutButton";
 import RecentWorkouts from "@/app/components/RecentWorkouts";
 
 import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 
 import { prisma } from "@/app/lib/prisma";
 
@@ -34,13 +35,27 @@ function SectionHeading({ title, action, href }: {
 
 export async function DashboardContent() {
   const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/signin");
+  }
 
-  const userId = session?.user?.id;
+  const userId = session.user.id;
 
-  const workouts = userId ? await prisma.workout.findMany({
+  const displayName = session.user.name?.trim().replace(/\s+/g, " ") || "Your Profile";
+  const nameParts = session.user.name?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const initialParts = nameParts.length > 1
+    ? [nameParts[0], nameParts[nameParts.length - 1]]
+    : nameParts;
+  const initials = (
+    initialParts.map((part) => Array.from(part)[0]).join("") ||
+    Array.from(session.user.email?.trim() || "")[0] ||
+    "U"
+  ).toUpperCase();
+
+  const workouts = await prisma.workout.findMany({
         where: { userId },
         select: { durationMinutes: true, date: true },
-      }) : [];
+      });
 
       const workoutDays = new Set(
         workouts.map((workout) => {
@@ -302,15 +317,15 @@ return (
 
           <Link href="/profile" className="mt-5 flex items-center gap-3 border-t border-app-border pt-5">
 
-            <div className="flex size-10 items-center justify-center rounded-full bg-accent-cyan/15 font-semibold text-accent-cyan">
+            <div aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-cyan/15 font-semibold text-accent-cyan">
 
-              WT
+              {initials}
 
             </div>
 
             <div className="min-w-0">
 
-              <p className="truncate text-sm font-medium">Your Profile</p>
+              <p className="truncate text-sm font-medium">{displayName}</p>
 
               <p className="text-xs text-text-muted">Fitness enthusiast</p>
 
@@ -366,10 +381,7 @@ return (
                   <span className="text-xs text-text-subtle">⌘ K</span>
                 </label>
 
-                <button type="button" aria-label="Notifications" className="relative flex size-10 items-center justify-center rounded-xl border border-app-border bg-app-surface text-lg text-text-muted transition hover:text-text-primary">
-                  ♧
-                  <span className="absolute right-2 top-2 size-2 rounded-full bg-accent-cyan" />
-                </button>
+
 
                 <Link href="/workouts/new" className="hidden items-center gap-2 rounded-xl bg-accent-cyan px-4 py-2.5 text-sm font-semibold text-app-bg transition hover:bg-cyan-300 sm:inline-flex">
                   <span aria-hidden="true">+</span>

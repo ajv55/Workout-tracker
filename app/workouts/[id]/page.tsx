@@ -1,3 +1,4 @@
+import { requirePageUser } from "@/app/lib/require-page-user";
 import { Suspense } from "react";
 import {
   GuardedWorkoutLink,
@@ -10,6 +11,8 @@ type PageProps = {
 };
 
 async function WorkoutDetailsContent({ params }: PageProps) {
+  await requirePageUser();
+
   const { id } = await params;
 
   return <WorkoutDetails workoutId={id} />;

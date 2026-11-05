@@ -1,7 +1,11 @@
+import { Suspense } from "react";
+import { requirePageUser } from "@/app/lib/require-page-user";
 import Link from "next/link";
 import WorkoutHistory from "@/app/components/WorkoutHistory";
 
-export default function WorkoutHistoryPage() {
+async function WorkoutHistoryPageContent() {
+  await requirePageUser();
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       <Link
@@ -32,5 +36,13 @@ export default function WorkoutHistoryPage() {
 
       <WorkoutHistory />
     </main>
+  );
+}
+
+export default function WorkoutHistoryPage() {
+  return (
+    <Suspense fallback={<p role="status" className="p-8 text-sm text-text-muted">Loading page…</p>}>
+      <WorkoutHistoryPageContent />
+    </Suspense>
   );
 }
