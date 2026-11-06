@@ -35,7 +35,7 @@ function SectionHeading({ title, action, href }: {
   );
 }
 
-export async function DashboardContent() {
+async function DashboardContent() {
   await connection();
 
   const session = await auth();
