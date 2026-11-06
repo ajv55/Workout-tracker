@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  outputFileTracingIncludes: {
+  "/*": ["./app/generated/prisma/**/*.so.node"],
+ },
 };
 
 export default nextConfig;
