@@ -5,9 +5,8 @@ import { connection } from "next/server";
 import NewWorkoutForm from "@/app/components/NewWorkoutForm";
 
 async function WorkoutFormContent() {
-  await requirePageUser();
-
   await connection();
+  await requirePageUser();
 
   const todayUtc = new Date().toISOString().slice(0, 10);
 

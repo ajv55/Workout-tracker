@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import SignInForm from "./SignInForm";
 import OAuthButtons from "./OAuthButtons";
+import { connection } from "next/server";
 
 export const metadata: Metadata = {
   title: "Sign in | Workout Tracker",
@@ -20,6 +21,9 @@ async function SignInContent({
 }: {
   searchParams: SignInSearchParams;
 }) {
+
+    await connection();
+    
   const session = await auth();
 
   if (session?.user?.id) {

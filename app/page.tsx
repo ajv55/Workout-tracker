@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 
 import { prisma } from "@/app/lib/prisma";
 
+import { connection } from "next/server";
+
 const navigation = [
   { label: "Dashboard", icon: "◫", href: "/", active: true },
   { label: "Workout History", icon: "▤", href: "/workouts", active: false },
@@ -34,6 +36,8 @@ function SectionHeading({ title, action, href }: {
 }
 
 export async function DashboardContent() {
+  await connection();
+
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/signin");
