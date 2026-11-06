@@ -603,9 +603,9 @@ return (
                   <p className="mt-3 max-w-md text-sm leading-6 text-text-muted">
                      Keep showing up, tracking your workouts, and building habits. Small improvements add up over time.
                   </p>
-                  <a href="#recent-workouts" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-accent-cyan hover:text-cyan-200">
+                  <Link href="/workouts" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-accent-cyan hover:text-cyan-200">
                     Review recent workouts <span aria-hidden="true">→</span>
-                  </a>
+                  </Link>
                 </div>
 
                 <div className="flex min-h-48 items-center justify-center overflow-hidden bg-gradient-to-br from-accent-cyan/10 via-accent-violet/10 to-accent-emerald/10 p-8">

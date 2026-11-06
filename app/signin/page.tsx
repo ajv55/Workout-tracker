@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import SignInForm from "./SignInForm";
 import OAuthButtons from "./OAuthButtons";
 import { connection } from "next/server";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Sign in | Workout Tracker",
@@ -23,7 +24,7 @@ async function SignInContent({
 }) {
 
     await connection();
-    
+
   const session = await auth();
 
   if (session?.user?.id) {
@@ -62,6 +63,12 @@ async function SignInContent({
       )}
       <SignInForm />
       <OAuthButtons />
+      <p className="mt-6 text-sm text-text-muted">
+        New to WorkoutTrack?{" "}
+        <Link href="/register" className="font-semibold text-accent-cyan underline">
+            Create an account
+        </Link>
+      </p>
     </section>
   );
 }
