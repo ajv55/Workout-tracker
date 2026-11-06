@@ -8,10 +8,33 @@ const roboto = Roboto({
   weight: ["400", "500", "700"],
 });
 
+const title = "Workout Tracker";
+const description =
+  "Record your workouts, track sets and rest times, and build consistency.";
+
 export const metadata: Metadata = {
-  title: "Workout Tracker",
-  description:
-    "Track your workouts, monitor your progress, and build consistency.",
+  // Set SITE_URL to the public HTTPS origin in the deployment environment.
+  metadataBase: new URL(process.env.SITE_URL || "http://localhost:3000"),
+  applicationName: title,
+  title,
+  description,
+  // These routes contain a private training application, not public content.
+  robots: {
+    index: false,
+    follow: false,
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: title,
+    title,
+    description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
 };
 
 export default function RootLayout({
