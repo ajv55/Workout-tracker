@@ -6,6 +6,16 @@ activity, and explore personalized energy estimates.
 
 [View the live application](https://workout-tracker-v01.vercel.app/welcome)
 
+## Screenshots
+
+### Dashboard
+
+![Dashboard with sample workout statistics](docs/screenshots/dashboard.png)
+
+### Workout details
+
+![Workout exercises, sets, and rest timer](docs/screenshots/workout-details.png)
+
 ## Features
 
 - Public landing page and responsive application interface.
