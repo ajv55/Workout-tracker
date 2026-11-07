@@ -2,8 +2,39 @@ import { NextResponse } from "next/server";
 import argon2 from "argon2";
 import { prisma } from "@/app/lib/prisma";
 import { registerSchema } from "@/app/lib/validations/auth";
+import {
+  checkRateLimit,
+  getRateLimitIdentifier,
+} from "@/app/lib/rate-limit";
 
 export async function POST(request: Request) {
+  const identifier = getRateLimitIdentifier(request.headers);
+
+  if (!identifier) {
+    return NextResponse.json(
+      { message: "Registration is temporarily unavailable." },
+      { status: 503 },
+    );
+  }
+
+  const limit = await checkRateLimit("register", identifier);
+
+  if (limit.status === "unavailable") {
+    return NextResponse.json(
+      { message: "Registration is temporarily unavailable. Please try again." },
+      { status: 503 },
+    );
+  }
+
+  if (limit.status === "blocked") {
+    return NextResponse.json(
+      { message: "Too many registration attempts. Please try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfter) },
+      },
+    );
+  }
   let body: unknown;
 
   // 1. Parse the incoming JSON safely.

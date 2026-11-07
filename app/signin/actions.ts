@@ -1,6 +1,6 @@
 "use server";
 
-import { AuthError } from "next-auth";
+import { AuthError, CredentialsSignin } from "next-auth";
 import { signIn, signOut } from "@/auth";
 
 export async function authenticate(
@@ -15,6 +15,17 @@ export async function authenticate(
     });
     return null;
   } catch (error) {
+    if (error instanceof CredentialsSignin) {
+    if (error.code === "rate_limited") {
+        return "Too many sign-in attempts. Please try again later.";
+    }
+
+    if (error.code === "temporarily_unavailable") {
+        return "Sign-in is temporarily unavailable. Please try again shortly.";
+    }
+
+    return "Email or password is incorrect.";
+    }
     if (error instanceof AuthError) {
       if (error.type === "CredentialsSignin") {
         return "Email or password is incorrect.";

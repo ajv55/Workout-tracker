@@ -40,6 +40,20 @@ async function register(
       return { error: null, success: true };
     }
 
+    if (response.status === 429) {
+      return {
+        error: "Too many registration attempts. Please try again later",
+        success: false,
+      };
+    }
+
+    if (response.status === 503) {
+      return {
+        error: "Registration is temporarily unavailable. Please try again shortly.",
+        success: false,
+      };
+    }
+
     if (response.status === 409) {
       return {
         error: "An account with this email already exists. Try signing in.",

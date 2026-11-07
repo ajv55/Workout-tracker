@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./app/lib/prisma";
 import Google from "next-auth/providers/google";
@@ -6,6 +6,18 @@ import GitHub from "next-auth/providers/github";
 import Credentials from "next-auth/providers/credentials";
 import argon2 from "argon2";
 import { loginSchema } from "./app/lib/validations/auth";
+import {
+  checkRateLimit,
+  getRateLimitIdentifier,
+} from "./app/lib/rate-limit";
+
+class SignInRateLimited extends CredentialsSignin {
+  code = "rate_limited";
+}
+
+class SignInTemporarilyUnavailable extends CredentialsSignin {
+  code = "temporarily_unavailable";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -35,7 +47,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
         },
 
-        async authorize(credentials) {
+        async authorize(credentials, request) {
+            const identifier = getRateLimitIdentifier(request.headers);
+
+                if (!identifier) {
+                    throw new SignInTemporarilyUnavailable();
+                }
+
+                const limit = await checkRateLimit("signin", identifier);
+
+                if (limit.status === "unavailable") {
+                    throw new SignInTemporarilyUnavailable();
+                }
+
+                if (limit.status === "blocked") {
+                    throw new SignInRateLimited();
+                }
+                
             const result = loginSchema.safeParse({
                     email: credentials?.email,
                     password: credentials?.password,
