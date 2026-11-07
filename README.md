@@ -261,6 +261,38 @@ Deployed and actively maintained. Core workout management, authentication,
 registration, and protected access have been tested in production on desktop
 and mobile.
 
+## Engineering Decisions
+
+### Sharing rate limits across server instances
+
+Vercel can run multiple application instances with separate memory.
+Registration and password sign-in therefore use shared Redis counters,
+so requests reaching different instances still consume the same allowance.
+
+Limits run on the server before database lookup and password hashing or
+verification. If the limiter is unavailable, these operations temporarily
+reject requests rather than bypassing protection.
+
+### Protecting workout ownership
+
+API endpoints derive the user ID from the authenticated session and enforce
+ownership on the server. Unauthenticated requests receive `401 Unauthorized`.
+Requests for missing workouts or workouts owned by another user receive
+`404 Not Found`, avoiding disclosure of another user's record existence.
+
+Nested operations also verify that each set belongs to the specified
+exercise attachment and that the attachment belongs to the specified workout.
+
+### Preventing stale set updates
+
+Workout sets use optimistic concurrency control to prevent one edit from
+overwriting changes saved by another tab. Each update includes the version
+the user loaded. A successful write atomically checks that version and
+increments it; a stale update returns `409 Conflict`.
+
+Version checks detect conflicting writes. They do not automatically
+synchronize data between tabs.
+
 ## Known Limitations
 
 - Password recovery and reset-email delivery are not implemented yet.
