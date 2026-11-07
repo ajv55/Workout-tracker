@@ -40,7 +40,7 @@ async function DashboardContent() {
 
   const session = await auth();
   if (!session?.user?.id) {
-    redirect("/signin");
+    redirect("/welcome");
   }
 
   const userId = session.user.id;
