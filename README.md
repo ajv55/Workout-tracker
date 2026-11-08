@@ -271,6 +271,24 @@ Deployed and actively maintained. Core workout management, authentication,
 registration, and protected access have been tested in production on desktop
 and mobile.
 
+## Architecture
+
+```mermaid
+flowchart TD
+    Browser["Browser"] -->|Open dashboard| Page["Next.js Server Component"]
+    Browser -->|Save a workout set| API["Next.js API route"]
+    Page --> Session["Check Auth.js session"]
+    API --> Checks["Check session, input, and ownership"]
+    Session --> Prisma["Prisma Client"]
+    Checks -->|Update only if version matches| Prisma
+    Prisma --> Atlas["MongoDB Atlas"]
+```
+
+The dashboard loads workout data on the server. Set edits go through an
+API route that validates the request, checks workout ownership and record
+relationships, and saves only if the set's version still matches. An
+outdated edit receives `409 Conflict`.
+
 ## Engineering Decisions
 
 ### Sharing rate limits across server instances
